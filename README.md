@@ -106,15 +106,13 @@
 
 ## Сборка из исходников
 
-Нужны JDK 17 и Go (или Docker) для ядра.
+Нужны JDK 17, Go и git.
+
+Файлов ядра в git нет. `run` и `package*` сами собирают ядро для этой системы в `desktopApp/resources/<windows|macos|linux>` (для Windows ещё скачивают `wintun.dll` с проверкой SHA-256), если его там ещё нет: из `-PcoreDir=<путь>`, из `../OpenFlux` рядом с репозиторием или из свежего клона ветки `fork-main` [`meepo161/openfluxfork`](https://github.com/meepo161/openfluxfork) в `desktopApp/build/openflux-core`. Чтобы пересобрать ядро, удалите его из `resources/<os>`; `-PskipCore=true` запускает приложение без ядра.
 
 ```bash
-# 1. Ядро для этой системы в desktopApp/resources/<windows|macos|linux> (+ wintun.dll для Windows)
-git clone -b fork-main https://github.com/meepo161/openfluxfork ../OpenFlux
-scripts/build-core.sh ../OpenFlux                                     # или GOOS=windows GOARCH=amd64 …
-
-# 2. Приложение
-./gradlew :desktopApp:run                                             # запустить
+./gradlew :desktopApp:run                                             # запустить (ядро соберётся при первом запуске)
+scripts/build-core.sh ../OpenFlux                                     # или ядро вручную, в т. ч. в Docker без Go
 ./gradlew :shared:jvmTest                                             # тесты
 ./gradlew -PwindowsPackage=true :desktopApp:packageMsi               # Windows: .msi (и packageExe)
 ./gradlew :desktopApp:packageDeb                                      # Linux: .deb (нужен fakeroot)
