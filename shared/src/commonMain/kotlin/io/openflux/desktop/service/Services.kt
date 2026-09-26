@@ -15,6 +15,7 @@ import io.openflux.desktop.model.ShareLinkCodec
 import io.openflux.desktop.model.TrafficStats
 import io.openflux.desktop.model.YandexDocument
 import io.openflux.desktop.ui.BrowserPage
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 
 /** Saved profiles. Writes are persisted before the flow updates. */
@@ -57,8 +58,12 @@ interface ConnectionService {
     fun shutdown()
 }
 
-/** Desktop facilities the UI needs without touching the platform itself. */
+/** Where the app runs; decides wording and touch-sized controls. */
+enum class PlatformKind { Desktop, Android }
+
+/** Platform facilities the UI needs without touching the platform itself. */
 interface PlatformServices {
+    val kind: PlatformKind get() = PlatformKind.Desktop
     val appVersion: String
     val coreVersion: String
     /** Whether this OS can point its system proxy at OpenFlux. */
@@ -73,12 +78,18 @@ interface PlatformServices {
 
     fun clipboardText(): String?
     fun setClipboardText(text: String)
+    /** Whether [qrFromClipboardImage] can find images on the clipboard. */
+    val clipboardImageSupported: Boolean get() = true
     /** Text of a QR code in the image on the clipboard, null when none. */
     fun qrFromClipboardImage(): String?
-    /** Text of a QR code in an image file. */
+    /** Text of a QR code in an image file ([pickFile]'s result). */
     fun qrFromFile(path: String): String?
-    /** A file the user picks; null if they cancel. */
-    fun pickFile(title: String, extensions: List<String>): String?
+    /** A file the user picks (a path or, on Android, a content URI); null if they cancel. */
+    suspend fun pickFile(title: String, extensions: List<String>): String?
+    /** Whether [scanQr] has a camera to use. */
+    val cameraScanSupported: Boolean get() = false
+    /** Text of a QR code the camera read; null if the user cancels. */
+    suspend fun scanQr(): String? = null
     /** A small text file's contents (an SSH key), null if it cannot be read. */
     fun readTextFile(path: String, maxBytes: Int = 64 * 1024): String?
     /** The QR modules of [text], rows of dark (true) cells. */
@@ -137,6 +148,9 @@ class AppContainer(
     val platform: PlatformServices,
     val shareCodec: ShareLinkCodec,
     val nodeWizard: NodeWizardService,
-)
+) {
+    /** An `openflux://` link opened from outside (a scanned code, a chat); the Profiles screen imports it. */
+    val incomingLink = MutableStateFlow<String?>(null)
+}
 
 val LocalAppContainer = staticCompositionLocalOf<AppContainer> { error("AppContainer is not provided") }

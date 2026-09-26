@@ -35,6 +35,8 @@ class ProfilesScreenModel(private val container: AppContainer) : ScreenModel {
     var editor by mutableStateOf<EditorState?>(null)
         private set
     var importOpen by mutableStateOf(false)
+    /** A link the import dialog starts with (opened from outside), else the clipboard's. */
+    var importText: String? = null
     var shareFor by mutableStateOf<Profile?>(null)
     var deleteFor by mutableStateOf<Profile?>(null)
     /** The "Своя нода" wizard while it is open. */
@@ -144,10 +146,12 @@ class ProfilesScreenModel(private val container: AppContainer) : ScreenModel {
 
     fun qrFromClipboard(): String? = platform.qrFromClipboardImage()
 
-    fun qrFromFile(): Pair<String?, Boolean> {
+    suspend fun qrFromFile(): Pair<String?, Boolean> {
         val path = platform.pickFile("QR-код OpenFlux", listOf("png", "jpg", "jpeg", "bmp", "gif")) ?: return null to false
         return platform.qrFromFile(path) to true
     }
+
+    suspend fun scanQr(): String? = platform.scanQr()
 
     fun import(preview: ImportPreview.Ready): Profile {
         val profile = Profile.fromShare(preview.config, profiles.newId(), platform.now(), preview.source)

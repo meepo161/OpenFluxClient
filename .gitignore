@@ -8,3 +8,6 @@ local.properties
 desktopApp/resources/*/openflux*
 desktopApp/resources/*/wintun.dll
 !desktopApp/resources/**/.gitkeep
+androidApp/libs/*.aar
+androidApp/libs/*.jar
+androidApp/libs/openflux-core.version

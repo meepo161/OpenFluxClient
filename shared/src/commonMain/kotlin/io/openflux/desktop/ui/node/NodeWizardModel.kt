@@ -130,10 +130,12 @@ class NodeWizardModel(private val container: AppContainer, private val scope: Co
     }
 
     fun readKeyFile() {
-        val path = container.platform.pickFile("Приватный ключ SSH", emptyList()) ?: return
-        val text = container.platform.readTextFile(path)
-        if (text == null) error = "Не удалось прочитать ключ: файл больше 64 КБ или недоступен"
-        else { privateKey = text.trim(); error = null }
+        scope.launch {
+            val path = container.platform.pickFile("Приватный ключ SSH", emptyList()) ?: return@launch
+            val text = container.platform.readTextFile(path)
+            if (text == null) error = "Не удалось прочитать ключ: файл больше 64 КБ или недоступен"
+            else { privateKey = text.trim(); error = null }
+        }
     }
 
     fun connect(trusted: String? = null) {
@@ -218,7 +220,7 @@ class NodeWizardModel(private val container: AppContainer, private val scope: Co
             // Yandex challenges this computer's address; the node checks
             // from its own, and the final verification decides.
             if (!e.captcha) throw e
-            "Яндекс попросил проверку у этого компьютера, поэтому документ проверит сама нода при запуске."
+            "Яндекс попросил проверку у этого устройства, поэтому документ проверит сама нода при запуске."
         }
         busy = "Спрашиваю сервер, что изменится…"
         plan = service.plan(channel!!.id, withCookies = yandexCookies.isNotEmpty())

@@ -1,5 +1,6 @@
 package io.openflux.desktop.ui.profiles
 
+import io.openflux.desktop.ui.PlatformBackHandler
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
@@ -74,6 +75,7 @@ import io.openflux.desktop.model.profile
 import io.openflux.desktop.service.LocalAppContainer
 import io.openflux.desktop.ui.LocalScrollbars
 import io.openflux.desktop.ui.LocalShortcuts
+import io.openflux.desktop.ui.LocalTouchUi
 import io.openflux.desktop.ui.components.AppButton
 import io.openflux.desktop.ui.components.AppCard
 import io.openflux.desktop.ui.components.AppIconButton
@@ -116,12 +118,22 @@ private fun ProfilesScreen(model: ProfilesScreenModel) {
     val state by model.connection.state.collectAsState()
     val shell = LocalShell.current
     val shortcuts = LocalShortcuts.current
+    val touch = LocalTouchUi.current
+    val container = LocalAppContainer.current
+    val incomingLink by container.incomingLink.collectAsState()
 
     // Requests from other screens (Home's empty state).
     LaunchedEffect(shell.importRequested, shell.newProfileRequested, shell.focusProfileId) {
         if (shell.importRequested) { model.importOpen = true; shell.importRequested = false }
         if (shell.newProfileRequested) { model.startNew(); shell.newProfileRequested = false }
         shell.focusProfileId?.let { id -> profiles.firstOrNull { it.id == id }?.let(model::select); shell.focusProfileId = null }
+    }
+    // A link opened from outside the app (a scanned code, a chat).
+    LaunchedEffect(incomingLink) {
+        val link = incomingLink ?: return@LaunchedEffect
+        container.incomingLink.value = null
+        model.importText = link
+        model.importOpen = true
     }
     DisposableEffect(model) {
         val unregister = shortcuts.register { event ->
@@ -148,6 +160,9 @@ private fun ProfilesScreen(model: ProfilesScreenModel) {
     // List and details side by side when both get a usable width, else one at a time.
     BoxWithConstraints(Modifier.fillMaxSize()) {
     val compact = maxWidth < 720.dp
+    PlatformBackHandler(enabled = touch && compact && showDetail) {
+        if (model.editor != null) model.cancelEdit() else model.selectedId = null
+    }
     val listWidth = (maxWidth * 0.32f).coerceIn(280.dp, 400.dp)
     // Side by side, an empty detail pane wastes the space: show the profile
     // Home would connect.
@@ -178,7 +193,8 @@ private fun ProfilesScreen(model: ProfilesScreenModel) {
                             message = if (profiles.isEmpty()) {
                                 "Импортируйте ссылку openflux:// или QR-код от владельца ноды, создайте профиль вручную или поставьте свою ноду на VDS."
                             } else {
-                                "Подробности появятся здесь. Двойной щелчок по профилю подключает его, правый — открывает меню."
+                                if (touch) "Подробности появятся здесь. Долгое нажатие на профиль открывает меню."
+                                else "Подробности появятся здесь. Двойной щелчок по профилю подключает его, правый — открывает меню."
                             },
                             resource = AppIcons.Public,
                         ) {
@@ -249,6 +265,7 @@ private fun ProfileListPane(model: ProfilesScreenModel, profiles: List<Profile>,
                         menu = { profileActions(model, profile, running) },
                         onToggle = { if (running) model.connection.disconnect() else model.connect(profile) },
                         onEdit = { model.startEdit(profile) },
+                        touch = LocalTouchUi.current,
                     )
                 }
                 item { Spacer(Modifier.height(AppTheme.spacing.l)) }
@@ -291,6 +308,7 @@ private fun ProfileRow(
     menu: () -> List<MenuAction>,
     onToggle: () -> Unit,
     onEdit: () -> Unit,
+    touch: Boolean,
 ) {
     val colors = AppTheme.colors
     val interaction = remember { MutableInteractionSource() }
@@ -312,7 +330,13 @@ private fun ProfileRow(
                 .background(fill)
                 .then(if (selected) Modifier.border(1.dp, colors.accent.copy(alpha = 0.45f), AppTheme.shapes.card) else Modifier)
                 .hoverable(interaction)
-                .combinedClickable(interactionSource = interaction, indication = null, onClick = onClick, onDoubleClick = onDoubleClick)
+                .combinedClickable(
+                    interactionSource = interaction,
+                    indication = null,
+                    onClick = onClick,
+                    onDoubleClick = if (touch) null else onDoubleClick,
+                    onLongClick = if (touch) ({ moreOpen = true }) else null,
+                )
                 .pointerHoverIcon(PointerIcon.Hand)
                 .padding(horizontal = AppTheme.spacing.m),
             verticalAlignment = Alignment.CenterVertically,
@@ -323,7 +347,7 @@ private fun ProfileRow(
                 Text(profile.name, style = AppTheme.typography.bodyStrong, color = colors.text, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 Text(profile.summary, style = AppTheme.typography.caption, color = colors.textSecondary, maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
-            if (hovered || moreOpen) {
+            if (!touch && (hovered || moreOpen)) {
                 AppIconButton(if (runningLook != null) "Отключить" else "Подключить", onToggle,
                     icon = if (runningLook != null) Icons.Rounded.Stop else Icons.Rounded.PlayArrow, tint = colors.accent)
                 AppIconButton("Изменить", onEdit, icon = Icons.Rounded.Edit)
@@ -331,8 +355,13 @@ private fun ProfileRow(
                     AppIconButton("Ещё", { moreOpen = true }, icon = Icons.Rounded.MoreVert)
                     AppMenu(moreOpen, { moreOpen = false }, menu())
                 }
-            } else if (runningLook != null) {
-                StatusBadge(runningLook.title, runningLook.tone)
+            } else {
+                if (runningLook != null) StatusBadge(runningLook.title, runningLook.tone)
+                // No hover on a touch screen: the menu stays in reach.
+                if (touch) Box {
+                    AppIconButton("Ещё", { moreOpen = true }, icon = Icons.Rounded.MoreVert)
+                    AppMenu(moreOpen, { moreOpen = false }, menu())
+                }
             }
         }
     }

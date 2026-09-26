@@ -205,7 +205,7 @@ fun AppDialog(
         Box(Modifier.padding(AppTheme.spacing.xl), contentAlignment = Alignment.Center) {
         Column(
             modifier
-                .widthIn(min = 320.dp, max = AppTheme.dimens.dialogWidth)
+                .widthIn(min = 280.dp, max = AppTheme.dimens.dialogWidth)
                 .shadow(24.dp, AppTheme.shapes.dialog)
                 .clip(AppTheme.shapes.dialog)
                 .background(AppTheme.colors.surface)

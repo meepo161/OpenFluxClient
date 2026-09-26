@@ -351,7 +351,7 @@ class NodeWizardModelTest {
         override fun setClipboardText(text: String) { clipboard = text }
         override fun qrFromClipboardImage(): String? = null
         override fun qrFromFile(path: String): String? = null
-        override fun pickFile(title: String, extensions: List<String>): String? = null
+        override suspend fun pickFile(title: String, extensions: List<String>): String? = null
         override fun readTextFile(path: String, maxBytes: Int): String? = null
         override fun qrMatrix(text: String): List<BooleanArray> = emptyList()
         override fun openUrl(url: String) { opened += url }

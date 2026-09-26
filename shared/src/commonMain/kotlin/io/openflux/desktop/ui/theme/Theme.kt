@@ -136,6 +136,7 @@ data class AppShapes(
 data class AppDimens(
     val sidebarWidth: Dp = 232.dp,
     val sidebarCompactWidth: Dp = 72.dp,
+    val bottomBarHeight: Dp = 64.dp,
     val buttonHeight: Dp = 40.dp,
     val fieldHeight: Dp = 44.dp,
     val iconButton: Dp = 36.dp,
@@ -165,8 +166,25 @@ object AppTheme {
     val dimens: AppDimens @Composable get() = LocalDimens.current
 }
 
+/** Android's own sizes: the desktop scale is one step denser for a window. */
+private val TouchTypography = AppTypography(
+    pageTitle = TextStyle(fontSize = 24.sp, fontWeight = FontWeight.Bold, lineHeight = 30.sp),
+    sectionTitle = TextStyle(fontSize = 18.sp, fontWeight = FontWeight.SemiBold, lineHeight = 24.sp),
+    label = TextStyle(fontSize = 12.sp, fontWeight = FontWeight.Bold, letterSpacing = 0.9.sp),
+    body = TextStyle(fontSize = 15.sp, lineHeight = 21.sp),
+    bodyStrong = TextStyle(fontSize = 15.sp, fontWeight = FontWeight.SemiBold, lineHeight = 21.sp),
+    bodySmall = TextStyle(fontSize = 13.sp, lineHeight = 18.sp),
+    caption = TextStyle(fontSize = 12.sp, lineHeight = 16.sp),
+    metric = TextStyle(fontSize = 22.sp, fontWeight = FontWeight.SemiBold),
+    mono = TextStyle(fontSize = 12.sp, fontFamily = FontFamily.Monospace, lineHeight = 18.sp),
+)
+
+/** Finger-sized targets and a phone's page margin. */
+private val TouchDimens = AppDimens(buttonHeight = 48.dp, fieldHeight = 52.dp, iconButton = 44.dp, listRow = 68.dp)
+private val TouchSpacing = AppSpacing(page = 16.dp)
+
 @Composable
-fun OpenFluxTheme(dark: Boolean, content: @Composable () -> Unit) {
+fun OpenFluxTheme(dark: Boolean, touch: Boolean = false, content: @Composable () -> Unit) {
     val colors = if (dark) DarkColors else LightColors
     val material = if (dark) {
         darkColorScheme(
@@ -185,10 +203,10 @@ fun OpenFluxTheme(dark: Boolean, content: @Composable () -> Unit) {
     }
     CompositionLocalProvider(
         LocalColors provides colors,
-        LocalTypography provides AppTypography(),
-        LocalSpacing provides AppSpacing(),
+        LocalTypography provides if (touch) TouchTypography else AppTypography(),
+        LocalSpacing provides if (touch) TouchSpacing else AppSpacing(),
         LocalShapes provides AppShapes(),
-        LocalDimens provides AppDimens(),
+        LocalDimens provides if (touch) TouchDimens else AppDimens(),
     ) {
         MaterialTheme(colorScheme = material, content = content)
     }

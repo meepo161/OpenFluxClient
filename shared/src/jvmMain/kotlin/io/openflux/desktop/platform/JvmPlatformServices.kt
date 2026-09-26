@@ -71,15 +71,15 @@ class JvmPlatformServices(
         ImageIO.read(File(path))?.let(::decodeQr)
     }.getOrNull()
 
-    override fun pickFile(title: String, extensions: List<String>): String? {
+    // The AWT dialog is modal on the UI thread, as when it was called from a click.
+    override suspend fun pickFile(title: String, extensions: List<String>): String? = withContext(Dispatchers.Main) {
         val dialog = FileDialog(null as Frame?, title, FileDialog.LOAD)
         if (extensions.isNotEmpty()) {
             dialog.setFilenameFilter { _, name -> extensions.any { name.lowercase().endsWith(".$it") } }
             if (os.contains("win")) dialog.file = extensions.joinToString(";") { "*.$it" }
         }
         dialog.isVisible = true
-        val file = dialog.file ?: return null
-        return File(dialog.directory, file).absolutePath
+        dialog.file?.let { File(dialog.directory, it).absolutePath }
     }
 
     override fun readTextFile(path: String, maxBytes: Int): String? = runCatching {

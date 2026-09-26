@@ -56,6 +56,9 @@ import io.openflux.desktop.model.Profile
 import io.openflux.desktop.model.isActive
 import io.openflux.desktop.service.AppContainer
 import io.openflux.desktop.service.LocalAppContainer
+import io.openflux.desktop.service.PlatformKind
+import io.openflux.desktop.ui.LocalTouchUi
+import io.openflux.desktop.ui.describe
 import io.openflux.desktop.ui.Format
 import io.openflux.desktop.ui.LocalScrollbars
 import io.openflux.desktop.ui.components.AppButton
@@ -196,6 +199,7 @@ private fun ControlPanel(
 ) {
     val look = state.look()
     val platform = LocalAppContainer.current.platform
+    val touch = LocalTouchUi.current
     var now by remember { mutableLongStateOf(0L) }
     LaunchedEffect(state) {
         while (state is ConnectionState.Connected || state is ConnectionState.Reconnecting) {
@@ -227,8 +231,8 @@ private fun ControlPanel(
     val hint = @Composable { hintModifier: Modifier ->
         Text(
             when {
-                state.isActive -> "Нажмите, чтобы отключиться · Ctrl+Enter"
-                else -> "Нажмите, чтобы подключиться · Ctrl+Enter"
+                state.isActive -> "Нажмите, чтобы отключиться" + if (touch) "" else " · Ctrl+Enter"
+                else -> "Нажмите, чтобы подключиться" + if (touch) "" else " · Ctrl+Enter"
             },
             style = AppTheme.typography.caption,
             color = AppTheme.colors.textHint,
@@ -253,7 +257,7 @@ private fun ControlPanel(
         )
         Spacer(Modifier.height(AppTheme.spacing.xs))
         Text(
-            if (state.isActive) "Режим меняется после отключения" else mode.description,
+            if (state.isActive) "Режим меняется после отключения" else mode.describe(platform.kind == PlatformKind.Android),
             style = AppTheme.typography.caption,
             color = AppTheme.colors.textSecondary,
         )
@@ -318,6 +322,7 @@ private fun DetailsColumn(model: HomeScreenModel, selected: Profile?, state: Con
     val shareLink by model.connection.exitShareLink.collectAsState()
     val settings by model.settings.settings.collectAsState()
     val container = LocalAppContainer.current
+    val android = container.platform.kind == PlatformKind.Android
     val profile = when (state) {
         is ConnectionState.Connecting -> state.profile
         is ConnectionState.Connected -> state.profile
@@ -372,7 +377,8 @@ private fun DetailsColumn(model: HomeScreenModel, selected: Profile?, state: Con
             KeyValueRow("Транспорт", profile.summary)
             HorizontalRule()
             KeyValueRow("Шифрование", if (profile.secret.isNotEmpty()) "AES-256-GCM" else "Нет ключа")
-            if (!exitMode) {
+            // Android's VPN carries the traffic itself; its proxy runs only without it.
+            if (!exitMode && !(android && settings.fullTunnel)) {
                 HorizontalRule()
                 val socksAddr = socks ?: "127.0.0.1:${settings.socksPort}"
                 KeyValueRow("SOCKS5", socksAddr) {
@@ -381,14 +387,18 @@ private fun DetailsColumn(model: HomeScreenModel, selected: Profile?, state: Con
                         toaster.show("Адрес SOCKS5 скопирован")
                     }, icon = Icons.Rounded.ContentCopy)
                 }
-                HorizontalRule()
-                val httpAddr = "127.0.0.1:${settings.socksPort + 1}"
-                KeyValueRow("HTTP-прокси", httpAddr) {
-                    AppIconButton("Копировать", {
-                        model.copy(httpAddr)
-                        toaster.show("Адрес HTTP-прокси скопирован")
-                    }, icon = Icons.Rounded.ContentCopy)
+                if (!android) {
+                    HorizontalRule()
+                    val httpAddr = "127.0.0.1:${settings.socksPort + 1}"
+                    KeyValueRow("HTTP-прокси", httpAddr) {
+                        AppIconButton("Копировать", {
+                            model.copy(httpAddr)
+                            toaster.show("Адрес HTTP-прокси скопирован")
+                        }, icon = Icons.Rounded.ContentCopy)
+                    }
                 }
+            }
+            if (!exitMode) {
                 HorizontalRule()
                 val (ipText, ipColor) = when (val address = exitAddress) {
                     ExitAddress.Unknown -> "—" to AppTheme.colors.textSecondary
@@ -407,8 +417,12 @@ private fun DetailsColumn(model: HomeScreenModel, selected: Profile?, state: Con
         if (!exitMode && container.platform.fullTunnelSupported) {
             AppCard(padding = AppTheme.spacing.s) {
                 SwitchRow(
-                    title = "Весь трафик компьютера",
-                    description = "Все программы, игры и UDP идут через ноду, как VPN на Android. Нужны права администратора.",
+                    title = if (android) "VPN: весь трафик телефона" else "Весь трафик компьютера",
+                    description = if (android) {
+                        "Все приложения идут через ноду. Выключите, чтобы OpenFlux работал только как прокси SOCKS5 127.0.0.1:${settings.socksPort}."
+                    } else {
+                        "Все программы, игры и UDP идут через ноду, как VPN на Android. Нужны права администратора."
+                    },
                     checked = settings.fullTunnel,
                     onCheckedChange = model::setFullTunnel,
                 )
@@ -453,7 +467,7 @@ private fun DetailsColumn(model: HomeScreenModel, selected: Profile?, state: Con
                     val matrix = remember(link) { model.qr(link) }
                     val hint = @Composable {
                         Text(
-                            "Отсканируйте в OpenFlux на телефоне или вставьте ссылку в OpenFlux на компьютере. В коде ключ шифрования: показывайте только своим.",
+                            "Отсканируйте в OpenFlux на другом телефоне или вставьте ссылку в OpenFlux на компьютере. В коде ключ шифрования: показывайте только своим.",
                             style = AppTheme.typography.body,
                             color = AppTheme.colors.textSecondary,
                         )

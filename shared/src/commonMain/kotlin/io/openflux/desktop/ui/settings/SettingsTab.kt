@@ -1,5 +1,6 @@
 package io.openflux.desktop.ui.settings
 
+import io.openflux.desktop.ui.PlatformBackHandler
 import io.openflux.desktop.model.profile
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.foundation.background
@@ -23,7 +24,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.FolderOpen
-import androidx.compose.material.icons.rounded.OpenInNew
+import androidx.compose.material.icons.automirrored.rounded.OpenInNew
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
@@ -50,6 +51,9 @@ import io.openflux.desktop.model.ThemeMode
 import io.openflux.desktop.model.isActive
 import io.openflux.desktop.service.AppContainer
 import io.openflux.desktop.service.LocalAppContainer
+import io.openflux.desktop.service.PlatformKind
+import io.openflux.desktop.ui.LocalTouchUi
+import io.openflux.desktop.ui.describe
 import io.openflux.desktop.ui.LocalScrollbars
 import io.openflux.desktop.ui.components.AppButton
 import io.openflux.desktop.ui.components.AppCard
@@ -76,10 +80,20 @@ enum class SettingsCategory(val title: String, val subtitle: String, val icon: D
     SystemProxy("Системный прокси", "Весь трафик Windows через OpenFlux", AppIcons.Routing),
     Core("Ядро OpenFlux", "Файл ядра и подробный журнал", AppIcons.Code),
     Interface("Интерфейс", "Тема, трей, журнал", AppIcons.DarkMode),
-    About("О программе", "Версии и репозитории", AppIcons.Info),
+    About("О программе", "Версии и репозитории", AppIcons.Info);
+
+    /** Title and subtitle in the device's words. */
+    fun label(android: Boolean): Pair<String, String> = when {
+        !android -> title to subtitle
+        this == SystemProxy -> "VPN" to "Весь трафик телефона через OpenFlux"
+        this == Core -> title to "Версия и подробный журнал"
+        this == Interface -> title to "Тема, журнал"
+        else -> title to subtitle
+    }
 }
 
 class SettingsScreenModel(val container: AppContainer) : ScreenModel {
+    val android = container.platform.kind == PlatformKind.Android
     var category by mutableStateOf(SettingsCategory.Connection)
     var mobileDetailOpen by mutableStateOf(false)
     var latestRelease by mutableStateOf<String?>(null)
@@ -105,6 +119,7 @@ private fun SettingsScreen(model: SettingsScreenModel) {
     // Categories beside the page when both fit, else one at a time.
     BoxWithConstraints(Modifier.fillMaxSize()) {
     val compact = maxWidth < 680.dp
+    PlatformBackHandler(enabled = LocalTouchUi.current && compact && model.mobileDetailOpen) { model.mobileDetailOpen = false }
     Row(Modifier.fillMaxSize()) {
         if (!compact || !model.mobileDetailOpen) {
             Column(
@@ -114,7 +129,7 @@ private fun SettingsScreen(model: SettingsScreenModel) {
                 PageHeader("Настройки", "Применяются сразу")
                 Spacer(Modifier.height(AppTheme.spacing.xl))
                 SettingsCategory.entries.forEach { category ->
-                    CategoryRow(category, selected = !compact && category == model.category) {
+                    CategoryRow(category, model.android, selected = !compact && category == model.category) {
                         model.category = category
                         model.mobileDetailOpen = true
                     }
@@ -133,7 +148,7 @@ private fun SettingsScreen(model: SettingsScreenModel) {
                             io.openflux.desktop.ui.components.AppIconButton("Назад", { model.mobileDetailOpen = false }, resource = AppIcons.Back)
                             Spacer(Modifier.width(AppTheme.spacing.s))
                         }
-                        Text(model.category.title, style = AppTheme.typography.pageTitle, color = AppTheme.colors.text)
+                        Text(model.category.label(model.android).first, style = AppTheme.typography.pageTitle, color = AppTheme.colors.text)
                     }
                     Spacer(Modifier.height(AppTheme.spacing.xl))
                     Column(Modifier.widthIn(max = 720.dp), verticalArrangement = Arrangement.spacedBy(AppTheme.spacing.l)) {
@@ -154,7 +169,8 @@ private fun SettingsScreen(model: SettingsScreenModel) {
 }
 
 @Composable
-private fun CategoryRow(category: SettingsCategory, selected: Boolean, onClick: () -> Unit) {
+private fun CategoryRow(category: SettingsCategory, android: Boolean, selected: Boolean, onClick: () -> Unit) {
+    val (title, subtitle) = category.label(android)
     val colors = AppTheme.colors
     val interaction = remember { MutableInteractionSource() }
     val hovered by interaction.collectIsHoveredAsState()
@@ -177,8 +193,8 @@ private fun CategoryRow(category: SettingsCategory, selected: Boolean, onClick: 
         IconBubble(category.icon)
         Spacer(Modifier.width(AppTheme.spacing.m))
         Column(Modifier.weight(1f)) {
-            Text(category.title, style = AppTheme.typography.bodyStrong, color = colors.text)
-            Text(category.subtitle, style = AppTheme.typography.caption, color = colors.textSecondary, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text(title, style = AppTheme.typography.bodyStrong, color = colors.text)
+            Text(subtitle, style = AppTheme.typography.caption, color = colors.textSecondary, maxLines = 1, overflow = TextOverflow.Ellipsis)
         }
     }
 }
@@ -198,7 +214,7 @@ private fun ConnectionSettings(model: SettingsScreenModel) {
         Spacer(Modifier.height(AppTheme.spacing.s))
         Segmented(ConnectionMode.entries, settings.mode, { it.label }, { m -> model.update { it.copy(mode = m) } }, Modifier.fillMaxWidth())
         Spacer(Modifier.height(AppTheme.spacing.xs))
-        Text(settings.mode.description, style = AppTheme.typography.bodySmall, color = AppTheme.colors.textSecondary)
+        Text(settings.mode.describe(model.android), style = AppTheme.typography.bodySmall, color = AppTheme.colors.textSecondary)
     }
     AppCard {
         SectionLabel("Локальный прокси")
@@ -215,12 +231,20 @@ private fun ConnectionSettings(model: SettingsScreenModel) {
             label = "Порт SOCKS5",
             keyboardType = KeyboardType.Number,
             error = if (!valid) "Порт от 1024 до 65534" else null,
-            helper = if (valid) "SOCKS5: 127.0.0.1:$parsed · HTTP-прокси: 127.0.0.1:${parsed!! + 1}" else null,
+            helper = when {
+                !valid -> null
+                model.android -> "SOCKS5: 127.0.0.1:$parsed"
+                else -> "SOCKS5: 127.0.0.1:$parsed · HTTP-прокси: 127.0.0.1:${parsed + 1}"
+            },
             modifier = Modifier.fillUpTo(260.dp),
         )
         Spacer(Modifier.height(AppTheme.spacing.s))
         Text(
-            "Прокси слушает только этот компьютер. Укажите его в браузере или программе либо включите системный прокси Windows.",
+            if (model.android) {
+                "Прокси работает, когда VPN выключен, и слушает только этот телефон. Укажите его в приложениях, которые умеют работать через прокси (Telegram, браузеры)."
+            } else {
+                "Прокси слушает только этот компьютер. Укажите его в браузере или программе либо включите системный прокси Windows."
+            },
             style = AppTheme.typography.bodySmall,
             color = AppTheme.colors.textSecondary,
         )
@@ -268,6 +292,10 @@ private fun ConnectionSettings(model: SettingsScreenModel) {
 @Composable
 private fun SystemProxySettings(model: SettingsScreenModel) {
     val settings by model.container.settings.settings.collectAsState()
+    if (model.android) {
+        VpnSettings(model, settings)
+        return
+    }
     if (!model.container.platform.systemProxySupported) {
         Banner("Системный прокси пока поддерживается только в Windows. Укажите SOCKS5 127.0.0.1:${settings.socksPort} в настройках нужных программ.", Tone.Neutral)
         return
@@ -309,12 +337,48 @@ private fun SystemProxySettings(model: SettingsScreenModel) {
     )
 }
 
+/** Android: the VPN, or only the local proxy without it. */
+@Composable
+private fun VpnSettings(model: SettingsScreenModel, settings: AppSettings) {
+    ActiveNotice(model)
+    AppCard(padding = AppTheme.spacing.s) {
+        SwitchRow(
+            "VPN: весь трафик телефона",
+            "Все приложения, кроме самого OpenFlux, идут через ноду. Android спросит разрешение при первом подключении.",
+            settings.fullTunnel,
+            { v ->
+                model.update { it.copy(fullTunnel = v) }
+                val state = model.container.connection.state.value
+                if (state.isActive) state.profile?.let(model.container.connection::connect)
+            },
+        )
+    }
+    Text(
+        if (settings.fullTunnel) {
+            "Если канал до ноды прервётся, VPN останется включённым и не выпустит трафик напрямую, пока канал не поднимется."
+        } else {
+            "Без VPN OpenFlux поднимает только прокси SOCKS5 127.0.0.1:${settings.socksPort}: через ноду пойдут лишь приложения, где он указан."
+        },
+        style = AppTheme.typography.bodySmall,
+        color = AppTheme.colors.textSecondary,
+    )
+}
+
 @Composable
 private fun CoreSettings(model: SettingsScreenModel) {
     val settings by model.container.settings.settings.collectAsState()
     val platform = model.container.platform
     ActiveNotice(model)
     AppCard {
+        if (model.android) {
+            KeyValueRow("Встроенное ядро", platform.coreVersion)
+            Text(
+                "Ядро OpenFlux встроено в приложение: сборка из форка с исправлениями Volga и мастером нод.",
+                style = AppTheme.typography.bodySmall,
+                color = AppTheme.colors.textSecondary,
+            )
+            return@AppCard
+        }
         SectionLabel("Файл ядра")
         Spacer(Modifier.height(AppTheme.spacing.s))
         Segmented(CoreSource.entries, settings.coreSource, { it.label }, { s -> model.update { it.copy(coreSource = s) } }, Modifier.fillUpTo(360.dp))
@@ -336,8 +400,11 @@ private fun CoreSettings(model: SettingsScreenModel) {
                     modifier = Modifier.weight(1f),
                 )
                 Spacer(Modifier.width(AppTheme.spacing.s))
+                val scope = rememberCoroutineScope()
                 AppButton("Выбрать…", {
-                    platform.pickFile("Файл ядра OpenFlux", listOf("exe"))?.let { path -> model.update { it.copy(customCorePath = path) } }
+                    scope.launch {
+                        platform.pickFile("Файл ядра OpenFlux", listOf("exe"))?.let { path -> model.update { it.copy(customCorePath = path) } }
+                    }
                 }, style = ButtonStyle.Secondary, leading = Icons.Rounded.FolderOpen)
             }
             Spacer(Modifier.height(AppTheme.spacing.s))
@@ -351,7 +418,8 @@ private fun CoreSettings(model: SettingsScreenModel) {
     AppCard(padding = AppTheme.spacing.s) {
         SwitchRow(
             "Подробный журнал ядра",
-            "Флаг --debug: каждое действие транспорта попадает в журнал. Нужен для диагностики, замедляет работу",
+            if (model.android) "Каждое действие транспорта попадает в журнал. Нужен для диагностики"
+            else "Флаг --debug: каждое действие транспорта попадает в журнал. Нужен для диагностики, замедляет работу",
             settings.verboseCoreLog,
             { v -> model.update { it.copy(verboseCoreLog = v) } },
         )
@@ -367,12 +435,14 @@ private fun InterfaceSettings(model: SettingsScreenModel) {
         Segmented(ThemeMode.entries, settings.theme, { it.label }, { t -> model.update { it.copy(theme = t) } }, Modifier.fillUpTo(420.dp))
     }
     AppCard(padding = AppTheme.spacing.s) {
-        SwitchRow(
-            "Сворачивать в трей при закрытии",
-            "Окно прячется в область уведомлений, соединение остаётся. Выйти можно из меню значка",
-            settings.closeToTray,
-            { v -> model.update { it.copy(closeToTray = v) } },
-        )
+        if (!model.android) {
+            SwitchRow(
+                "Сворачивать в трей при закрытии",
+                "Окно прячется в область уведомлений, соединение остаётся. Выйти можно из меню значка",
+                settings.closeToTray,
+                { v -> model.update { it.copy(closeToTray = v) } },
+            )
+        }
         SwitchRow(
             "Автопрокрутка журнала",
             "Показывать новые строки журнала сразу",
@@ -446,6 +516,6 @@ private fun LinkRow(title: String, subtitle: String, url: String, open: (String)
             Text(title, style = AppTheme.typography.bodyStrong, color = AppTheme.colors.text)
             Text(subtitle, style = AppTheme.typography.caption, color = AppTheme.colors.textSecondary)
         }
-        androidx.compose.material3.Icon(Icons.Rounded.OpenInNew, "Открыть", tint = AppTheme.colors.textHint)
+        androidx.compose.material3.Icon(Icons.AutoMirrored.Rounded.OpenInNew, "Открыть", tint = AppTheme.colors.textHint)
     }
 }

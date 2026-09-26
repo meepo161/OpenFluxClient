@@ -1,6 +1,7 @@
 package io.openflux.desktop.ui.profiles
 
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -13,12 +14,14 @@ import androidx.compose.material.icons.rounded.ContentPaste
 import androidx.compose.material.icons.rounded.ErrorOutline
 import androidx.compose.material.icons.rounded.Image
 import androidx.compose.material.icons.rounded.Lock
+import androidx.compose.material.icons.rounded.QrCodeScanner
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -26,6 +29,8 @@ import androidx.compose.ui.unit.dp
 import io.openflux.desktop.model.Profile
 import io.openflux.desktop.model.ProfileSource
 import io.openflux.desktop.model.TransportType
+import io.openflux.desktop.service.LocalAppContainer
+import io.openflux.desktop.service.PlatformKind
 import io.openflux.desktop.ui.components.AppButton
 import io.openflux.desktop.ui.components.AppCard
 import io.openflux.desktop.ui.components.AppDialog
@@ -38,19 +43,25 @@ import io.openflux.desktop.ui.components.LocalToaster
 import io.openflux.desktop.ui.components.QrCode
 import io.openflux.desktop.ui.components.Tone
 import io.openflux.desktop.ui.theme.AppTheme
+import kotlinx.coroutines.launch
 
 /**
  * Adds a profile from an `openflux://` link: typed or pasted, from the
- * clipboard, or read from a QR code (image file or image on the clipboard).
+ * clipboard, opened from outside, or read from a QR code (camera, image
+ * file or image on the clipboard).
  */
 @Composable
 fun ImportDialog(model: ProfilesScreenModel) {
     val toaster = LocalToaster.current
+    val platform = LocalAppContainer.current.platform
+    val scope = rememberCoroutineScope()
     var text by remember { mutableStateOf("") }
     var source by remember { mutableStateOf(ProfileSource.Link) }
     var notice by remember { mutableStateOf<String?>(null) }
     LaunchedEffect(Unit) {
-        val clip = model.clipboardText()
+        val opened = model.importText
+        model.importText = null
+        val clip = opened ?: model.clipboardText()
         if (clip.startsWith("openflux://")) text = clip
     }
     val preview = model.preview(text, source)
@@ -68,7 +79,7 @@ fun ImportDialog(model: ProfilesScreenModel) {
         },
     ) {
         Text(
-            "Ссылка openflux:// или QR-код приходят от владельца ноды: в Android-приложении это «QR и ссылка», в режиме ноды — карточка на главной.",
+            "Ссылка openflux:// или QR-код приходят от владельца ноды: в OpenFlux это «QR и ссылка» у профиля, в режиме ноды — карточка на главной.",
             style = AppTheme.typography.body,
             color = AppTheme.colors.textSecondary,
         )
@@ -84,19 +95,31 @@ fun ImportDialog(model: ProfilesScreenModel) {
         )
         Spacer(Modifier.height(AppTheme.spacing.m))
         ButtonRow {
+            if (platform.cameraScanSupported) {
+                AppButton("Сканировать QR", {
+                    scope.launch {
+                        val found = model.scanQr()
+                        if (found != null) { text = found.trim(); source = ProfileSource.Qr; notice = null }
+                    }
+                }, leading = Icons.Rounded.QrCodeScanner)
+            }
             AppButton("Из буфера", {
                 text = model.clipboardText(); source = ProfileSource.Link; notice = null
             }, style = ButtonStyle.Secondary, leading = Icons.Rounded.ContentPaste)
-            AppButton("QR из файла…", {
-                val (found, picked) = model.qrFromFile()
-                if (found != null) { text = found; source = ProfileSource.Qr; notice = null }
-                else if (picked) notice = "На картинке не найден QR-код"
+            AppButton(if (platform.kind == PlatformKind.Android) "QR из галереи" else "QR из файла…", {
+                scope.launch {
+                    val (found, picked) = model.qrFromFile()
+                    if (found != null) { text = found; source = ProfileSource.Qr; notice = null }
+                    else if (picked) notice = "На картинке не найден QR-код"
+                }
             }, style = ButtonStyle.Secondary, leading = Icons.Rounded.Image)
-            AppButton("QR из буфера", {
-                val found = model.qrFromClipboard()
-                if (found != null) { text = found; source = ProfileSource.Qr; notice = null }
-                else notice = "В буфере нет картинки с QR-кодом"
-            }, style = ButtonStyle.Secondary)
+            if (platform.clipboardImageSupported) {
+                AppButton("QR из буфера", {
+                    val found = model.qrFromClipboard()
+                    if (found != null) { text = found; source = ProfileSource.Qr; notice = null }
+                    else notice = "В буфере нет картинки с QR-кодом"
+                }, style = ButtonStyle.Secondary)
+            }
         }
         notice?.let {
             Spacer(Modifier.height(AppTheme.spacing.s))
@@ -137,14 +160,28 @@ fun ShareDialog(model: ProfilesScreenModel, profile: Profile) {
     ) {
         link.fold(
             onSuccess = { value ->
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    QrCode(remember(value) { model.qr(value) }, 220.dp)
-                    Spacer(Modifier.width(AppTheme.spacing.l))
-                    Column(Modifier.fillMaxWidth()) {
-                        Text("Отсканируйте в OpenFlux на телефоне (Профили → QR) или вставьте ссылку в OpenFlux на компьютере.",
-                            style = AppTheme.typography.body, color = AppTheme.colors.textSecondary)
-                        Spacer(Modifier.height(AppTheme.spacing.m))
-                        Banner("В коде ключ шифрования: передавайте только тому, кто будет пользоваться каналом.", Tone.Warning, icon = Icons.Rounded.Lock)
+                val matrix = remember(value) { model.qr(value) }
+                val hint = @Composable {
+                    Text("Отсканируйте в OpenFlux на другом устройстве (Профили → Импорт) или вставьте ссылку в OpenFlux на компьютере.",
+                        style = AppTheme.typography.body, color = AppTheme.colors.textSecondary)
+                    Spacer(Modifier.height(AppTheme.spacing.m))
+                    Banner("В коде ключ шифрования: передавайте только тому, кто будет пользоваться каналом.", Tone.Warning, icon = Icons.Rounded.Lock)
+                }
+                // The code beside its hint when there is room, above it on a phone.
+                BoxWithConstraints(Modifier.fillMaxWidth()) {
+                    val width = maxWidth
+                    if (width >= 440.dp) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            QrCode(matrix, 220.dp)
+                            Spacer(Modifier.width(AppTheme.spacing.l))
+                            Column(Modifier.fillMaxWidth()) { hint() }
+                        }
+                    } else {
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            QrCode(matrix, minOf(width, 260.dp))
+                            Spacer(Modifier.height(AppTheme.spacing.l))
+                            Column(Modifier.fillMaxWidth()) { hint() }
+                        }
                     }
                 }
                 Spacer(Modifier.height(AppTheme.spacing.m))

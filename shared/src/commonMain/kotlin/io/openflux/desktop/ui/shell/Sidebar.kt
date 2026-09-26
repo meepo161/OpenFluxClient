@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -31,6 +32,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import cafe.adriel.voyager.navigator.tab.Tab
+import io.openflux.desktop.model.ConnectionState
 import io.openflux.desktop.model.profile
 import io.openflux.desktop.service.LocalAppContainer
 import io.openflux.desktop.ui.components.AppIconButton
@@ -171,6 +173,55 @@ private fun ConnectionFooter(collapsed: Boolean, onClick: () -> Unit) {
                         color = AppTheme.colors.textSecondary,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
+                    )
+                }
+            }
+        }
+    }
+}
+
+/**
+ * A phone's navigation: the sections along the bottom edge, the connection
+ * state as a dot on Home so it stays visible from every screen.
+ */
+@Composable
+fun BottomBar(current: Tab, tabs: List<Tab>, onSelect: (Tab) -> Unit, modifier: Modifier = Modifier) {
+    val colors = AppTheme.colors
+    val state by LocalAppContainer.current.connection.state.collectAsState()
+    val tone = toneColor(state.look().tone)
+    Column(modifier.fillMaxWidth().background(colors.sidebar)) {
+        Box(Modifier.fillMaxWidth().height(1.dp).background(colors.border))
+        Row(
+            Modifier.fillMaxWidth().height(AppTheme.dimens.bottomBarHeight).padding(horizontal = AppTheme.spacing.xs),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            tabs.forEachIndexed { index, tab ->
+                val selected = tab.key == current.key
+                val options = tab.options
+                val pill by animateColorAsState(if (selected) colors.accentSoft else Color.Transparent)
+                val tint = if (selected) colors.accent else colors.textSecondary
+                Column(
+                    Modifier.weight(1f).fillMaxHeight().appClickable(remember { MutableInteractionSource() }) { onSelect(tab) },
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.Center,
+                ) {
+                    Box {
+                        Box(Modifier.width(56.dp).height(30.dp).clip(AppTheme.shapes.pill).background(pill), contentAlignment = Alignment.Center) {
+                            options.icon?.let { Icon(it, options.title, tint = tint, modifier = Modifier.size(22.dp)) }
+                        }
+                        if (index == 0 && state != ConnectionState.Idle) {
+                            Box(
+                                Modifier.align(Alignment.TopEnd).padding(top = 3.dp, end = 12.dp).size(9.dp)
+                                    .clip(CircleShape).background(colors.sidebar).padding(1.5.dp).clip(CircleShape).background(tone),
+                            )
+                        }
+                    }
+                    Spacer(Modifier.height(2.dp))
+                    Text(
+                        options.title,
+                        style = AppTheme.typography.caption,
+                        color = if (selected) colors.text else colors.textSecondary,
+                        maxLines = 1,
                     )
                 }
             }

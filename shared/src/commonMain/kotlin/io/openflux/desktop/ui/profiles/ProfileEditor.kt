@@ -53,6 +53,7 @@ import io.openflux.desktop.model.TransportType
 import io.openflux.desktop.model.ValueKind
 import io.openflux.desktop.ui.LocalScrollbars
 import io.openflux.desktop.ui.LocalShortcuts
+import io.openflux.desktop.ui.LocalTouchUi
 import io.openflux.desktop.ui.components.AppButton
 import io.openflux.desktop.ui.components.AppCard
 import io.openflux.desktop.ui.components.AppIconButton
@@ -108,7 +109,7 @@ fun ProfileEditor(model: ProfilesScreenModel, state: EditorState, onBack: (() ->
                 Spacer(Modifier.width(AppTheme.spacing.s))
                 AppButton("Сохранить", save)
             }
-            Text("Ctrl+S — сохранить, Esc — отменить", style = AppTheme.typography.caption, color = AppTheme.colors.textHint)
+            if (!LocalTouchUi.current) Text("Ctrl+S — сохранить, Esc — отменить", style = AppTheme.typography.caption, color = AppTheme.colors.textHint)
             Spacer(Modifier.height(AppTheme.spacing.xl))
 
             Column(Modifier.widthIn(max = 720.dp), verticalArrangement = Arrangement.spacedBy(AppTheme.spacing.xl)) {

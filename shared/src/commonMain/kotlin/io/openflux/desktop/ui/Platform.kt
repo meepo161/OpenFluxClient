@@ -30,6 +30,19 @@ object NoScrollbars : Scrollbars {
 val LocalScrollbars = staticCompositionLocalOf<Scrollbars> { NoScrollbars }
 
 /**
+ * The system back gesture or button (Android): the innermost enabled
+ * handler gets it. Does nothing on the desktop.
+ */
+@Composable
+expect fun PlatformBackHandler(enabled: Boolean = true, onBack: () -> Unit)
+
+/**
+ * A touch screen (Android): no pointer hover, no keyboard shortcuts, bigger
+ * controls and text.
+ */
+val LocalTouchUi = staticCompositionLocalOf { false }
+
+/**
  * Window-wide keyboard shortcuts. The window forwards its key events here
  * and the shell registers what the keys do.
  */

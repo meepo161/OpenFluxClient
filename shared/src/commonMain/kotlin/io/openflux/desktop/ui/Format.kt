@@ -43,6 +43,13 @@ fun ConnectionState.look(): StateLook = when (this) {
     is ConnectionState.Failed -> StateLook("Ошибка", Tone.Danger)
 }
 
+/** The mode's one-line description, in the device's words. */
+fun ConnectionMode.describe(android: Boolean): String = when {
+    !android -> description
+    this == ConnectionMode.Client -> "Трафик телефона идёт через ноду"
+    else -> "Этот телефон выпускает в интернет других"
+}
+
 /** Hides document addresses and keys, as the Android log does. */
 object Redact {
     private val url = Regex("""https?://(docs|disk|cloud)\.[^\s"')]+""")

@@ -17,23 +17,6 @@ import java.nio.file.Files
 import java.nio.file.StandardCopyOption
 import java.util.UUID
 
-/** Per-user application folders. */
-object AppDirs {
-    private val os = System.getProperty("os.name").lowercase()
-
-    val config: File by lazy {
-        val base = when {
-            os.contains("win") -> System.getenv("APPDATA")?.let(::File) ?: File(System.getProperty("user.home"), "AppData/Roaming")
-            os.contains("mac") -> File(System.getProperty("user.home"), "Library/Application Support")
-            else -> System.getenv("XDG_CONFIG_HOME")?.let(::File) ?: File(System.getProperty("user.home"), ".config")
-        }
-        File(base, if (os.contains("win") || os.contains("mac")) "OpenFlux" else "openflux").apply { mkdirs() }
-    }
-
-    /** Files the core needs while it runs (key, .conf, IPC socket). */
-    val runtime: File by lazy { File(config, "runtime").apply { mkdirs() } }
-}
-
 internal val StoreJson = Json {
     ignoreUnknownKeys = true
     encodeDefaults = true
@@ -47,7 +30,7 @@ internal class JsonFile<T>(private val file: File, private val serializer: KSeri
     }.getOrNull()
 
     fun write(value: T) {
-        file.parentFile.mkdirs()
+        file.parentFile?.mkdirs()
         val tmp = File(file.parentFile, file.name + ".tmp")
         tmp.writeText(StoreJson.encodeToString(serializer, value))
         restrictToOwner(tmp)
@@ -63,7 +46,7 @@ internal fun restrictToOwner(file: File) {
     file.setWritable(true, true)
 }
 
-class FileProfileRepository(dir: File = AppDirs.config) : ProfileRepository {
+class FileProfileRepository(dir: File) : ProfileRepository {
     private val store = JsonFile(File(dir, "profiles.json"), ListSerializer(Profile.serializer()))
     private val state = MutableStateFlow(store.read().orEmpty())
     override val profiles: StateFlow<List<Profile>> = state.asStateFlow()
@@ -90,10 +73,10 @@ class FileProfileRepository(dir: File = AppDirs.config) : ProfileRepository {
     override fun newId(): String = UUID.randomUUID().toString()
 }
 
-class FileSettingsRepository(dir: File = AppDirs.config) : SettingsRepository {
+class FileSettingsRepository(dir: File, defaults: AppSettings = AppSettings()) : SettingsRepository {
     private val store = JsonFile(File(dir, "settings.json"), AppSettings.serializer())
     private val state = MutableStateFlow(
-        (store.read() ?: AppSettings()).let { loaded -> loaded.migrated().also { if (it != loaded) store.write(it) } },
+        (store.read() ?: defaults).let { loaded -> loaded.migrated().also { if (it != loaded) store.write(it) } },
     )
     override val settings: StateFlow<AppSettings> = state.asStateFlow()
 

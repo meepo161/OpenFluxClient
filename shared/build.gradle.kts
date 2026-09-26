@@ -1,5 +1,8 @@
+import org.jetbrains.kotlin.gradle.ExperimentalKotlinGradlePluginApi
+
 plugins {
     alias(libs.plugins.kotlinMultiplatform)
+    alias(libs.plugins.androidLibrary)
     alias(libs.plugins.composeMultiplatform)
     alias(libs.plugins.composeCompiler)
     alias(libs.plugins.kotlinSerialization)
@@ -7,7 +10,19 @@ plugins {
 
 kotlin {
     jvm()
+    androidTarget()
     jvmToolchain(17)
+
+    // jvmSharedMain: code both the desktop and Android use (java.io, java.util.zip).
+    @OptIn(ExperimentalKotlinGradlePluginApi::class)
+    applyDefaultHierarchyTemplate {
+        common {
+            group("jvmShared") {
+                withJvm()
+                withAndroidTarget()
+            }
+        }
+    }
 
     sourceSets {
         commonMain.dependencies {
@@ -24,6 +39,9 @@ kotlin {
             api(libs.voyager.screenmodel)
             implementation(libs.voyager.transitions)
         }
+        androidMain.dependencies {
+            implementation(libs.androidx.activity.compose)
+        }
         jvmMain.dependencies {
             implementation(libs.zxing.core)
             implementation(libs.kcef)
@@ -34,6 +52,18 @@ kotlin {
             implementation(libs.kotlin.testJunit)
             implementation(libs.kotlinx.coroutines.test)
         }
+    }
+}
+
+android {
+    namespace = "io.openflux.shared"
+    compileSdk = libs.versions.android.compileSdk.get().toInt()
+    defaultConfig {
+        minSdk = libs.versions.android.minSdk.get().toInt()
+    }
+    compileOptions {
+        sourceCompatibility = JavaVersion.VERSION_17
+        targetCompatibility = JavaVersion.VERSION_17
     }
 }
 

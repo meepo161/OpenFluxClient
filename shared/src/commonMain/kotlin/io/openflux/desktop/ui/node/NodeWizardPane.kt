@@ -1,8 +1,10 @@
 package io.openflux.desktop.ui.node
 
+import io.openflux.desktop.ui.PlatformBackHandler
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.FlowRow
@@ -61,6 +63,7 @@ import io.openflux.desktop.ui.components.Segmented
 import io.openflux.desktop.ui.components.TextAction
 import io.openflux.desktop.ui.components.Tone
 import io.openflux.desktop.ui.components.windowSize
+import io.openflux.desktop.ui.LocalTouchUi
 import io.openflux.desktop.ui.theme.AppTheme
 
 /**
@@ -75,6 +78,10 @@ fun NodeWizardPane(model: NodeWizardModel, onClose: () -> Unit, onSaved: (String
         if (model.busy == null) {
             if (model.unsaved) confirmClose = true else onClose()
         }
+    }
+    // Back steps back through the wizard, then leaves it.
+    PlatformBackHandler(enabled = LocalTouchUi.current && model.busy == null) {
+        if (model.step == WizardStep.Document || model.step == WizardStep.Plan) model.back() else requestClose()
     }
     val scroll = rememberScrollState()
     val scrollbars = LocalScrollbars.current
@@ -147,11 +154,23 @@ fun NodeWizardPane(model: NodeWizardModel, onClose: () -> Unit, onSaved: (String
     }
     if (qrOpen) {
         AppDialog(title = "Отсканируйте в OpenFlux", onDismiss = { qrOpen = false }, secondary = "Закрыть") {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                QrCode(remember(model.shareLink) { model.qr() }, 220.dp)
-                Spacer(Modifier.width(AppTheme.spacing.l))
-                Text("На телефоне: Профили → QR. В коде ключ канала: показывайте его только тому, кто будет им пользоваться.",
-                    style = AppTheme.typography.body, color = AppTheme.colors.textSecondary)
+            val matrix = remember(model.shareLink) { model.qr() }
+            val hint = "На другом устройстве: Профили → Импорт → Сканировать QR. В коде ключ канала: показывайте его только тому, кто будет им пользоваться."
+            BoxWithConstraints(Modifier.fillMaxWidth()) {
+                val width = maxWidth
+                if (width >= 440.dp) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        QrCode(matrix, 220.dp)
+                        Spacer(Modifier.width(AppTheme.spacing.l))
+                        Text(hint, style = AppTheme.typography.body, color = AppTheme.colors.textSecondary)
+                    }
+                } else {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        QrCode(matrix, minOf(width, 260.dp))
+                        Spacer(Modifier.height(AppTheme.spacing.l))
+                        Text(hint, style = AppTheme.typography.body, color = AppTheme.colors.textSecondary)
+                    }
+                }
             }
         }
     }
@@ -161,7 +180,7 @@ fun NodeWizardPane(model: NodeWizardModel, onClose: () -> Unit, onSaved: (String
 private fun Header(model: NodeWizardModel, onClose: () -> Unit) {
     val (title, subtitle) = when (model.step) {
         WizardStep.Server -> "Своя нода" to "Сервер (VDS) с Linux и systemd: Debian, Ubuntu и похожие."
-        WizardStep.Document -> "Документ канала" to "Через этот документ Яндекса компьютер и нода обмениваются зашифрованным трафиком."
+        WizardStep.Document -> "Документ канала" to "Через этот документ Яндекса устройство и нода обмениваются зашифрованным трафиком."
         WizardStep.Plan -> "Будут изменения" to "На сервере будет сделано только это."
         WizardStep.Verify -> "Проверка канала" to "Подключаюсь к новой ноде и открываю сайт через неё."
         WizardStep.Done -> "Нода готова" to if (model.verifiedIp.isEmpty()) "Канал установлен, но проверка не завершена."
@@ -279,7 +298,7 @@ private fun ColumnScope.DocumentStep(model: NodeWizardModel) {
         Spacer(Modifier.height(AppTheme.spacing.l))
     }
     AppTextField(model.name, { model.name = it }, label = "Название профиля", enabled = idle)
-    model.channel?.let { Note("Канал: ${it.id}. Для него создан отдельный ключ шифрования, его знают только этот компьютер и нода.") }
+    model.channel?.let { Note("Канал: ${it.id}. Для него создан отдельный ключ шифрования, его знают только это устройство и нода.") }
     Actions {
         if (creating) {
             AppButton("Отменить вход в Яндекс", model::cancelDocument, style = ButtonStyle.Secondary)
@@ -428,7 +447,7 @@ private fun ColumnScope.DoneStep(model: NodeWizardModel, onShowQr: () -> Unit, o
         if (model.saved) {
             AppButton("Открыть профиль", { model.profile?.let { onSaved(it.id) } }, leading = Icons.Rounded.CheckCircle)
         } else {
-            AppButton("Сохранить на этом компьютере", {
+            AppButton("Сохранить на этом устройстве", {
                 model.save()?.let { toaster.show("Профиль «${it.name}» сохранён", Tone.Success) }
             })
         }
