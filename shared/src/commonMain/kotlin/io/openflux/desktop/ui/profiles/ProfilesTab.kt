@@ -29,6 +29,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.ContentCopy
 import androidx.compose.material.icons.rounded.ContentPaste
+import androidx.compose.material.icons.rounded.Dns
 import androidx.compose.material.icons.rounded.Delete
 import androidx.compose.material.icons.rounded.Edit
 import androidx.compose.material.icons.rounded.FileCopy
@@ -90,6 +91,7 @@ import io.openflux.desktop.ui.components.SectionLabel
 import io.openflux.desktop.ui.components.StatusBadge
 import io.openflux.desktop.ui.components.Tone
 import io.openflux.desktop.ui.look
+import io.openflux.desktop.ui.node.NodeWizardPane
 import io.openflux.desktop.ui.shell.LocalShell
 import io.openflux.desktop.ui.shell.WidthClass
 import io.openflux.desktop.ui.theme.AppTheme
@@ -122,7 +124,7 @@ private fun ProfilesScreen(model: ProfilesScreenModel) {
     }
     DisposableEffect(model) {
         val unregister = shortcuts.register { event ->
-            if (event.type != KeyEventType.KeyDown) return@register false
+            if (event.type != KeyEventType.KeyDown || model.wizard != null) return@register false
             when {
                 event.isCtrlPressed && event.key == Key.N -> { model.startNew(); true }
                 event.isCtrlPressed && event.key == Key.I -> { model.importOpen = true; true }
@@ -145,6 +147,11 @@ private fun ProfilesScreen(model: ProfilesScreenModel) {
     }
     val showDetail = model.editor != null || selected != null
 
+    model.wizard?.let { wizard ->
+        NodeWizardPane(wizard, onClose = { model.closeWizard() }, onSaved = { model.closeWizard(it) })
+        return
+    }
+
     Row(Modifier.fillMaxSize()) {
         if (!compact || !showDetail) {
             ProfileListPane(
@@ -165,7 +172,7 @@ private fun ProfilesScreen(model: ProfilesScreenModel) {
                         EmptyState(
                             title = if (profiles.isEmpty()) "Профилей пока нет" else "Выберите профиль",
                             message = if (profiles.isEmpty()) {
-                                "Импортируйте ссылку openflux:// или QR-код от владельца ноды, либо создайте профиль вручную."
+                                "Импортируйте ссылку openflux:// или QR-код от владельца ноды, создайте профиль вручную или поставьте свою ноду на VDS."
                             } else {
                                 "Подробности появятся здесь. Двойной щелчок по профилю подключает его, правый — открывает меню."
                             },
@@ -174,6 +181,7 @@ private fun ProfilesScreen(model: ProfilesScreenModel) {
                             Row(horizontalArrangement = Arrangement.spacedBy(AppTheme.spacing.s)) {
                                 AppButton("Импорт", { model.importOpen = true }, leading = Icons.Rounded.ContentPaste)
                                 AppButton("Создать", model::startNew, style = ButtonStyle.Secondary)
+                                AppButton("Своя нода", model::openWizard, style = ButtonStyle.Secondary, leading = Icons.Rounded.Dns)
                             }
                         }
                     }
@@ -201,6 +209,7 @@ private fun ProfileListPane(model: ProfilesScreenModel, profiles: List<Profile>,
                 AppMenu(addMenu, { addMenu = false }, listOf(
                     MenuAction("Создать вручную", model::startNew, Icons.Rounded.Edit, shortcut = "Ctrl+N"),
                     MenuAction("Импорт ссылки или QR", { model.importOpen = true }, Icons.Rounded.ContentPaste, shortcut = "Ctrl+I"),
+                    MenuAction("Создать свою ноду на VDS", model::openWizard, Icons.Rounded.Dns),
                 ))
             }
         }
