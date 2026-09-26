@@ -2,13 +2,15 @@
 
 # OpenFlux для компьютера
 
-**Настольный клиент [OpenFlux](https://github.com/p1neappleXpress/OpenFlux) для Windows:
+**Настольный клиент [OpenFlux](https://github.com/p1neappleXpress/OpenFlux) для Windows, Linux и macOS:
 профили, своя нода на VDS в пару кликов и весь трафик компьютера через туннель.**
 
-[![Windows release](https://github.com/meepo161/openfluxfordesktop/actions/workflows/release.yml/badge.svg)](https://github.com/meepo161/openfluxfordesktop/actions/workflows/release.yml)
+[![Release](https://github.com/meepo161/openfluxfordesktop/actions/workflows/release.yml/badge.svg)](https://github.com/meepo161/openfluxfordesktop/actions/workflows/release.yml)
 [![Latest release](https://img.shields.io/github/v/release/meepo161/openfluxfordesktop?label=%D1%80%D0%B5%D0%BB%D0%B8%D0%B7)](https://github.com/meepo161/openfluxfordesktop/releases/latest)
 ![Kotlin](https://img.shields.io/badge/Kotlin-Compose%20Multiplatform-7F52FF?logo=kotlin&logoColor=white)
 ![Windows](https://img.shields.io/badge/Windows-10%20%7C%2011-0078D4?logo=windows&logoColor=white)
+![Linux](https://img.shields.io/badge/Linux-x64-FCC624?logo=linux&logoColor=black)
+![macOS](https://img.shields.io/badge/macOS-Apple%20Silicon%20%7C%20Intel-000000?logo=apple&logoColor=white)
 
 [Скачать](#скачать) · [Возможности](#возможности) · [Своя нода](#своя-нода-на-vds) · [Сборка](#сборка-из-исходников) · [Устройство](#устройство)
 
@@ -25,8 +27,8 @@
 | | |
 |---|---|
 | 🔌 **Подключение в один клик** | Большая кнопка на главной, живой статус от ядра: подключено или переподключается, скорость, объём, активный транспорт, внешний IP. |
-| 🌐 **Весь трафик компьютера** | Режим TUN на Wintun, как VPN на Android: браузеры, игры, мессенджеры и UDP идут через ноду. |
-| 🧭 **Системный прокси Windows** | Включается сам при подключении, прежние настройки возвращаются при отключении, выходе и после сбоя. |
+| 🌐 **Весь трафик компьютера** | Режим TUN на Wintun, как VPN на Android: браузеры, игры, мессенджеры и UDP идут через ноду. *Windows.* |
+| 🧭 **Системный прокси Windows** | Включается сам при подключении, прежние настройки возвращаются при отключении, выходе и после сбоя. *Windows; на Linux и macOS — SOCKS5 и HTTP-прокси на `127.0.0.1`.* |
 | 🛰️ **Своя нода на VDS** | Мастер ставит канал на ваш сервер по SSH, сам создаёт документ в Яндексе и проверяет, что трафик выходит с адреса сервера. |
 | 🧾 **Профили** | Импорт `openflux://` и QR-кодов (из файла или буфера), ручное создание, режим Session с несколькими транспортами и приоритетами. |
 | 🔎 **Встроенный браузер** | Вход в Яндекс и его проверки внутри приложения (Chromium через KCEF); проверки ноды открываются с её адреса. |
@@ -39,13 +41,17 @@
 
 Готовые сборки — на странице [Releases](https://github.com/meepo161/openfluxfordesktop/releases/latest):
 
-| Файл | Что это |
-|---|---|
-| `OpenFlux-X.Y.Z-windows-x64.msi` | Установщик для одного пользователя, без прав администратора |
-| `OpenFlux-X.Y.Z-windows-x64-setup.exe` | То же, в виде `.exe` |
-| `OpenFlux-X.Y.Z-windows-x64-portable.zip` | Без установки: распакуйте и запустите `OpenFlux.exe` |
+| Система | Файл | Что это |
+|---|---|---|
+| **Windows** 10/11 x64 | `OpenFlux-X.Y.Z-windows-x64.msi` | Установщик для одного пользователя, без прав администратора |
+| | `OpenFlux-X.Y.Z-windows-x64-setup.exe` | То же, в виде `.exe` |
+| | `OpenFlux-X.Y.Z-windows-x64-portable.zip` | Без установки: распакуйте и запустите `OpenFlux.exe` |
+| **Linux** x64 | `OpenFlux-X.Y.Z-linux-x64.deb` | Debian, Ubuntu, Mint: `sudo apt install ./OpenFlux-X.Y.Z-linux-x64.deb` |
+| | `OpenFlux-X.Y.Z-linux-x64.tar.gz` | Любой дистрибутив: распакуйте и запустите `OpenFlux/bin/OpenFlux` |
+| **macOS** | `OpenFlux-X.Y.Z-macos-arm64.dmg` | Apple Silicon (M1 и новее) |
+| | `OpenFlux-X.Y.Z-macos-x64.dmg` | Intel |
 
-Ядро OpenFlux и `wintun.dll` уже внутри. Встроенный браузер (~230 МБ) скачивается с CDN JetBrains при первом входе в Яндекс.
+Ядро OpenFlux (и `wintun.dll` в Windows) уже внутри. Встроенный браузер (~230 МБ) скачивается с CDN JetBrains при первом входе в Яндекс. Сборки для macOS не подписаны: при первом запуске откройте приложение через правый клик → «Открыть».
 
 ## Быстрый старт
 
@@ -100,17 +106,19 @@
 
 ## Сборка из исходников
 
-Нужны JDK 17, Go (для ядра) и `curl` + `unzip`.
+Нужны JDK 17 и Go (или Docker) для ядра.
 
 ```bash
-# 1. Ядро и wintun.dll в desktopApp/resources/windows
+# 1. Ядро для этой системы в desktopApp/resources/<windows|macos|linux> (+ wintun.dll для Windows)
 git clone -b desktop-core https://github.com/meepo161/openfluxandroidfork ../openfluxandroidfork
-scripts/build-core.sh ../openfluxandroidfork        # Go в Docker; или соберите ядро сами, см. скрипт
+scripts/build-core.sh ../openfluxandroidfork                          # или GOOS=windows GOARCH=amd64 …
 
 # 2. Приложение
-./gradlew :desktopApp:run                           # запустить
-./gradlew :shared:jvmTest                           # тесты
-./gradlew -PwindowsPackage=true :desktopApp:packageMsi   # установщик
+./gradlew :desktopApp:run                                             # запустить
+./gradlew :shared:jvmTest                                             # тесты
+./gradlew -PwindowsPackage=true :desktopApp:packageMsi               # Windows: .msi (и packageExe)
+./gradlew :desktopApp:packageDeb                                      # Linux: .deb (нужен fakeroot)
+./gradlew :desktopApp:packageDmg                                      # macOS: .dmg
 ```
 
 В настройках можно указать и свой файл ядра — `wintun.dll` должен лежать рядом с ним.
@@ -123,7 +131,9 @@ scripts/build-core.sh ../openfluxandroidfork        # Go в Docker; или со�
 git tag v2.1.0 && git push origin v2.1.0
 ```
 
-Workflow [`release.yml`](.github/workflows/release.yml) на `windows-2022` собирает ядро из [`meepo161/openfluxandroidfork`](https://github.com/meepo161/openfluxandroidfork), кладёт рядом официальный `wintun.dll` (с проверкой SHA-256), прогоняет тесты, собирает `.msi`, `.exe` и портативный `.zip` и публикует их в Releases вместе с `SHA256SUMS.txt`. Перед публикацией он проверяет, что в пакет попали нативные библиотеки Skia для Windows (`skiko-awt-runtime-windows-x64`) — без них окно не нарисуется, а сборка при этом не упадёт; флаг `-PwindowsPackage=true` добавляет их, даже если собирать не на Windows.
+Workflow [`release.yml`](.github/workflows/release.yml) собирает четыре сборки параллельно — Windows x64 (`windows-2022`), Linux x64 (`ubuntu-22.04`), macOS Apple Silicon (`macos-14`) и macOS Intel (`macos-15-intel`). Каждая собирает ядро из [`meepo161/openfluxandroidfork`](https://github.com/meepo161/openfluxandroidfork) под свою платформу (для Windows ещё и официальный `wintun.dll` с проверкой SHA-256), прогоняет тесты и пакует приложение; затем все файлы публикуются одним релизом вместе с `SHA256SUMS.txt`.
+
+Перед публикацией каждая сборка проверяет, что в пакет попали нативные библиотеки Skia для своей платформы (`skiko-awt-runtime-<os>-<arch>`), ядро и `wintun.dll` — без skiko окно не нарисуется, а сборка при этом не упадёт. Флаг `-PwindowsPackage=true` добавляет Windows-библиотеки skiko, даже если собирать не на Windows.
 
 Ветку или коммит ядра можно задать переменными репозитория `CORE_REPO` / `CORE_REF` или при ручном запуске («Run workflow»).
 

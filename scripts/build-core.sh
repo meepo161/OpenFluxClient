@@ -4,20 +4,45 @@
 # meepo161/openfluxandroidfork) with the local Go, or in Docker without one:
 #
 #   scripts/build-core.sh ../openfluxandroidfork [docker image]
+#   GOOS=linux GOARCH=arm64 scripts/build-core.sh ../openfluxandroidfork
 #
-# Writes desktopApp/resources/windows/openflux-windows-amd64.exe,
-# wintun.dll (for the full tunnel) and openflux-core.version (branch@commit,
-# shown under Settings → About).
+# The target is GOOS/GOARCH (default: this machine). Writes into
+# desktopApp/resources/<windows|macos|linux>: openflux-<os>-<arch>[.exe],
+# openflux-core.version (branch@commit, shown under Settings → About) and,
+# for Windows, wintun.dll (the full tunnel).
 set -euo pipefail
 
 core=$(cd "${1:?path to the OpenFlux core checkout}" && pwd)
 image=${2:-golang:$(sed -n 's/^go \([0-9.]*\).*/\1/p' "$core/go.mod" | head -n1)}
-out=$(cd "$(dirname "$0")/.." && pwd)/desktopApp/resources/windows
+
+host_os() {
+  case "$(uname -s)" in
+    MINGW*|MSYS*|CYGWIN*) echo windows ;;
+    Darwin) echo darwin ;;
+    *) echo linux ;;
+  esac
+}
+host_arch() {
+  case "$(uname -m)" in
+    arm64|aarch64) echo arm64 ;;
+    *) echo amd64 ;;
+  esac
+}
+goos=${GOOS:-$(host_os)}
+goarch=${GOARCH:-$(host_arch)}
+case "$goos" in
+  windows) dir=windows; ext=.exe ;;
+  darwin) dir=macos; ext= ;;
+  linux) dir=linux; ext= ;;
+  *) echo "unsupported GOOS=$goos" >&2; exit 1 ;;
+esac
+name="openflux-$goos-$goarch$ext"
+out=$(cd "$(dirname "$0")/.." && pwd)/desktopApp/resources/$dir
 mkdir -p "$out"
 
 if command -v go >/dev/null 2>&1 && [ -z "${2:-}" ]; then
-  (cd "$core" && GOOS=windows GOARCH=amd64 CGO_ENABLED=0 GOFLAGS=-buildvcs=false \
-    GOTOOLCHAIN=auto go build -trimpath -ldflags "-s -w" -o "$out/openflux-windows-amd64.exe" .)
+  (cd "$core" && GOOS=$goos GOARCH=$goarch CGO_ENABLED=0 GOFLAGS=-buildvcs=false \
+    GOTOOLCHAIN=auto go build -trimpath -ldflags "-s -w" -o "$out/$name" .)
 else
   # Docker Desktop on Windows wants C:/... paths; elsewhere pwd is fine.
   host_path() { (cd "$1" && (pwd -W 2>/dev/null || pwd)); }
@@ -27,20 +52,23 @@ else
     -v ofx-gomod:/go/pkg/mod \
     -v ofx-gocache:/root/.cache/go-build \
     -w /src \
-    -e GOOS=windows -e GOARCH=amd64 -e CGO_ENABLED=0 -e GOFLAGS=-buildvcs=false \
+    -e GOOS="$goos" -e GOARCH="$goarch" -e CGO_ENABLED=0 -e GOFLAGS=-buildvcs=false \
     "$image" \
-    go build -trimpath -ldflags "-s -w" -o /out/openflux-windows-amd64.exe .
+    go build -trimpath -ldflags "-s -w" -o "/out/$name" .
 fi
+chmod +x "$out/$name"
 
-# Wintun for the full tunnel (--inbound=tun): the core loads wintun.dll from
-# its own folder. The official build, checked against its published SHA-256.
-wintun_zip=$(mktemp)
-curl -fsSL -o "$wintun_zip" https://www.wintun.net/builds/wintun-0.14.1.zip
-echo "07c256185d6ee3652e09fa55c0b673e2624b565e02c4b9091c79ca7d2f24ef51  $wintun_zip" | sha256sum -c - >/dev/null
-unzip -p "$wintun_zip" wintun/bin/amd64/wintun.dll > "$out/wintun.dll"
-rm -f "$wintun_zip"
+if [ "$goos" = windows ]; then
+  # Wintun for the full tunnel (--inbound=tun): the core loads wintun.dll
+  # from its own folder. The official build, checked against its SHA-256.
+  wintun_zip=$(mktemp)
+  curl -fsSL -o "$wintun_zip" https://www.wintun.net/builds/wintun-0.14.1.zip
+  echo "07c256185d6ee3652e09fa55c0b673e2624b565e02c4b9091c79ca7d2f24ef51  $wintun_zip" | sha256sum -c - >/dev/null
+  unzip -p "$wintun_zip" wintun/bin/amd64/wintun.dll > "$out/wintun.dll"
+  rm -f "$wintun_zip"
+fi
 
 branch=$(git -C "$core" rev-parse --abbrev-ref HEAD)
 rev=$(git -C "$core" describe --always --dirty)
 printf '%s@%s\n' "$branch" "$rev" > "$out/openflux-core.version"
-echo "core $(cat "$out/openflux-core.version") -> $out"
+echo "core $(cat "$out/openflux-core.version") -> $out/$name"
