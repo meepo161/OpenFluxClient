@@ -4,6 +4,7 @@ import io.openflux.desktop.ui.BrowserPage
 import io.openflux.desktop.web.BrowserProxy
 import io.openflux.desktop.web.BuiltInBrowser
 import io.openflux.desktop.web.KcefPage
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -29,12 +30,44 @@ class CaptchaBrowser : AutoCloseable {
         _page.value = BuiltInBrowser.open(request.url, upstream, onStep)
     }
 
-    /** The cookies for [url] the check left, by name (the most specific domain wins). */
+    /**
+     * The cookies the check left for [url] and for the page it ended on, by
+     * name (the most specific domain wins), like the Android CaptchaActivity.
+     */
     suspend fun collect(url: String): Map<String, String> {
-        check(_page.value != null) { "Сначала откройте страницу проверки" }
+        val page = _page.value as? KcefPage ?: throw IllegalStateException("Сначала откройте страницу проверки")
         val now = Date()
-        val cookies = BuiltInBrowser.cookies(url).filter { !it.hasExpires || it.expires == null || it.expires.after(now) }
+        val urls = listOf(url, page.url).filter { it.startsWith("https://") }.distinct()
+        val cookies = urls.flatMap { BuiltInBrowser.cookies(it) }
+            .filter { !it.hasExpires || it.expires == null || it.expires.after(now) }
         return BuiltInBrowser.selectForUrl(cookies.map { BuiltInBrowser.CookieValue(it.name, it.value, it.domain.orEmpty()) })
+    }
+
+    /**
+     * Returns once the page has settled on a regular page, not a check: a
+     * real browser is often let through without any (the check targets the
+     * core's bot-like client), and the Android app then submits by itself.
+     * Returns false if the page is closed first.
+     */
+    suspend fun awaitPassed(): Boolean {
+        var settledSince = 0L
+        while (true) {
+            val page = _page.value as? KcefPage ?: return false
+            if (page.closed) return false
+            val url = page.url
+            val settled = !page.loading && url.startsWith("https://") && !isCheckpoint(url)
+            val now = System.currentTimeMillis()
+            if (!settled) settledSince = 0L
+            else if (settledSince == 0L) settledSince = now
+            else if (now - settledSince >= SETTLE_MS) return true
+            delay(300)
+        }
+    }
+
+    companion object {
+        private const val SETTLE_MS = 1500L
+
+        fun isCheckpoint(url: String) = "showcaptcha" in url || "passport.yandex" in url
     }
 
     override fun close() {
