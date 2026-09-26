@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
 # Builds the core the app bundles from an OpenFlux checkout (needs the IPC
-# status, --http-proxy and --node-wizard changes) with the Go toolchain in Docker:
+# status, --http-proxy, --node-wizard and full tunnel changes, see
+# meepo161/openfluxandroidfork) with the local Go, or in Docker without one:
 #
-#   scripts/build-core.sh ../openfluxandroidfork [image]
+#   scripts/build-core.sh ../openfluxandroidfork [docker image]
 #
 # Writes desktopApp/resources/windows/openflux-windows-amd64.exe,
 # wintun.dll (for the full tunnel) and openflux-core.version (branch@commit,
@@ -10,22 +11,26 @@
 set -euo pipefail
 
 core=$(cd "${1:?path to the OpenFlux core checkout}" && pwd)
-image=${2:-openflux-mobile-builder:r30}
+image=${2:-golang:$(sed -n 's/^go \([0-9.]*\).*/\1/p' "$core/go.mod" | head -n1)}
 out=$(cd "$(dirname "$0")/.." && pwd)/desktopApp/resources/windows
 mkdir -p "$out"
 
-# Docker Desktop on Windows wants C:/... paths; elsewhere pwd is fine.
-host_path() { (cd "$1" && (pwd -W 2>/dev/null || pwd)); }
-
-MSYS_NO_PATHCONV=1 docker run --rm \
-  -v "$(host_path "$core"):/src:ro" \
-  -v "$(host_path "$out"):/out" \
-  -v ofx-gomod:/go/pkg/mod \
-  -v ofx-gocache:/root/.cache/go-build \
-  -w /src \
-  -e GOOS=windows -e GOARCH=amd64 -e CGO_ENABLED=0 -e GOFLAGS=-buildvcs=false \
-  "$image" \
-  go build -trimpath -ldflags "-s -w" -o /out/openflux-windows-amd64.exe .
+if command -v go >/dev/null 2>&1 && [ -z "${2:-}" ]; then
+  (cd "$core" && GOOS=windows GOARCH=amd64 CGO_ENABLED=0 GOFLAGS=-buildvcs=false \
+    GOTOOLCHAIN=auto go build -trimpath -ldflags "-s -w" -o "$out/openflux-windows-amd64.exe" .)
+else
+  # Docker Desktop on Windows wants C:/... paths; elsewhere pwd is fine.
+  host_path() { (cd "$1" && (pwd -W 2>/dev/null || pwd)); }
+  MSYS_NO_PATHCONV=1 docker run --rm \
+    -v "$(host_path "$core"):/src:ro" \
+    -v "$(host_path "$out"):/out" \
+    -v ofx-gomod:/go/pkg/mod \
+    -v ofx-gocache:/root/.cache/go-build \
+    -w /src \
+    -e GOOS=windows -e GOARCH=amd64 -e CGO_ENABLED=0 -e GOFLAGS=-buildvcs=false \
+    "$image" \
+    go build -trimpath -ldflags "-s -w" -o /out/openflux-windows-amd64.exe .
+fi
 
 # Wintun for the full tunnel (--inbound=tun): the core loads wintun.dll from
 # its own folder. The official build, checked against its published SHA-256.

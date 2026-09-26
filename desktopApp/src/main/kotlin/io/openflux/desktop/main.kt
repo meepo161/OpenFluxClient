@@ -31,7 +31,8 @@ import java.util.concurrent.atomic.AtomicBoolean
 import javax.swing.JOptionPane
 import kotlin.system.exitProcess
 
-private const val APP_VERSION = "2.0.0"
+/** Set by the build (-Dopenflux.version); "dev" when run some other way. */
+private val APP_VERSION = System.getProperty("openflux.version") ?: "dev"
 
 /** Held for the life of the process so a second copy cannot fight over the port and the proxy. */
 private fun acquireSingleInstance(): FileLock? {

@@ -1,0 +1,139 @@
+name: Windows release
+
+# A tag like v2.1.0 builds the Windows packages and publishes them as a
+# GitHub release. "Run workflow" builds them as artifacts only (or, with
+# a tag given, publishes that release too).
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version (1.2.3); empty = from the tag or 0.0.0-dev'
+        required: false
+      core_ref:
+        description: 'Core branch, tag or commit in the core repository'
+        required: false
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  # The OpenFlux core the app bundles (IPC status, --http-proxy,
+  # --node-wizard, the Windows full tunnel). Override with the repository
+  # variables CORE_REPO / CORE_REF or the workflow input.
+  CORE_REPO: ${{ vars.CORE_REPO || 'meepo161/openfluxandroidfork' }}
+  CORE_REF: ${{ inputs.core_ref || vars.CORE_REF || 'claude/dazzling-lovelace-oquymz' }}
+  WINTUN_VERSION: '0.14.1'
+  WINTUN_SHA256: '07c256185d6ee3652e09fa55c0b673e2624b565e02c4b9091c79ca7d2f24ef51'
+
+jobs:
+  windows:
+    name: Windows x64
+    runs-on: windows-2022
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - name: Checkout the app
+        uses: actions/checkout@v4
+
+      - name: Checkout the core
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ env.CORE_REPO }}
+          ref: ${{ env.CORE_REF }}
+          path: .core
+
+      - name: Version
+        id: version
+        run: |
+          v="${{ inputs.version }}"
+          if [ -z "$v" ] && [[ "$GITHUB_REF" == refs/tags/v* ]]; then v="${GITHUB_REF#refs/tags/v}"; fi
+          [ -n "$v" ] || v="0.0.0"
+          # MSI wants MAJOR.MINOR.BUILD with numbers only.
+          if ! [[ "$v" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then echo "::error::version '$v' is not MAJOR.MINOR.BUILD"; exit 1; fi
+          echo "value=$v" >> "$GITHUB_OUTPUT"
+          echo "Version $v, core $CORE_REPO@$CORE_REF"
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: .core/go.mod
+          cache-dependency-path: .core/go.sum
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - uses: gradle/actions/setup-gradle@v4
+
+      - name: Build the core
+        run: |
+          out="$GITHUB_WORKSPACE/desktopApp/resources/windows"
+          mkdir -p "$out"
+          cd .core
+          GOOS=windows GOARCH=amd64 CGO_ENABLED=0 go build -trimpath -ldflags "-s -w" -o "$out/openflux-windows-amd64.exe" .
+          printf '%s@%s\n' "$CORE_REF" "$(git rev-parse --short HEAD)" > "$out/openflux-core.version"
+          cat "$out/openflux-core.version"
+
+      - name: Wintun
+        run: |
+          curl -fsSL -o wintun.zip "https://www.wintun.net/builds/wintun-$WINTUN_VERSION.zip"
+          echo "$WINTUN_SHA256  wintun.zip" | sha256sum -c -
+          7z e -y wintun.zip wintun/bin/amd64/wintun.dll -odesktopApp/resources/windows >/dev/null
+          rm wintun.zip
+          ls -l desktopApp/resources/windows
+
+      - name: Tests
+        run: ./gradlew --no-daemon :shared:jvmTest
+
+      - name: Package
+        run: |
+          ./gradlew --no-daemon -PappVersion=${{ steps.version.outputs.value }} -PwindowsPackage=true \
+            :desktopApp:createDistributable :desktopApp:packageMsi :desktopApp:packageExe
+
+      # Without Skia's Windows natives the app cannot draw a window, and
+      # nothing fails at build time: check they are in the package.
+      - name: Check the package
+        run: |
+          app=desktopApp/build/compose/binaries/main/app/OpenFlux
+          ls "$app"
+          find "$app" -iname 'skiko-awt-runtime-windows-x64*.jar' | grep -q . || { echo "::error::skiko Windows runtime missing from the package"; exit 1; }
+          for f in openflux-windows-amd64.exe wintun.dll openflux-core.version; do
+            find "$app" -name "$f" | grep -q . || { echo "::error::$f missing from the package"; exit 1; }
+          done
+          echo "Package OK"
+
+      - name: Collect
+        id: files
+        run: |
+          v=${{ steps.version.outputs.value }}
+          mkdir -p dist
+          cp desktopApp/build/compose/binaries/main/msi/*.msi "dist/OpenFlux-$v-windows-x64.msi"
+          cp desktopApp/build/compose/binaries/main/exe/*.exe "dist/OpenFlux-$v-windows-x64-setup.exe"
+          (cd desktopApp/build/compose/binaries/main/app && 7z a -tzip -mx=7 "$GITHUB_WORKSPACE/dist/OpenFlux-$v-windows-x64-portable.zip" OpenFlux >/dev/null)
+          (cd dist && sha256sum * > SHA256SUMS.txt && cat SHA256SUMS.txt)
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: OpenFlux-${{ steps.version.outputs.value }}-windows-x64
+          path: dist/*
+
+      - name: Release
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          name: OpenFlux ${{ steps.version.outputs.value }}
+          generate_release_notes: true
+          files: dist/*
+          body: |
+            **Windows x64.** Установщик — `.msi` или `-setup.exe`, без установки — `-portable.zip` (запуск `OpenFlux.exe`).
+
+            - Встроенный браузер для входа в Яндекс и проверок (~230 МБ) скачивается при первом использовании.
+            - Режим «Весь трафик компьютера» требует запуска от имени администратора.
+            - Ядро: `${{ env.CORE_REPO }}@${{ env.CORE_REF }}`. Контрольные суммы — в `SHA256SUMS.txt`.
