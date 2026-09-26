@@ -6,4 +6,5 @@ build/
 *.iml
 local.properties
 desktopApp/resources/*/openflux*
+desktopApp/resources/*/wintun.dll
 !desktopApp/resources/**/.gitkeep

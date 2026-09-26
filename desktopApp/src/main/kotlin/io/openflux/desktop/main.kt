@@ -16,6 +16,7 @@ import androidx.compose.ui.window.rememberWindowState
 import io.openflux.desktop.data.AppDirs
 import io.openflux.desktop.model.isActive
 import io.openflux.desktop.model.profile
+import io.openflux.desktop.platform.RELAUNCHED_ARG
 import io.openflux.desktop.ui.DesktopScrollbars
 import io.openflux.desktop.ui.Shortcuts
 import io.openflux.desktop.ui.components.AppIcons
@@ -39,8 +40,17 @@ private fun acquireSingleInstance(): FileLock? {
     return runCatching { RandomAccessFile(file, "rw").channel.tryLock() }.getOrNull()
 }
 
-fun main() {
-    val lock = acquireSingleInstance()
+fun main(args: Array<String>) {
+    // A copy started as administrator waits for the one that started it to exit.
+    var lock = acquireSingleInstance()
+    if (lock == null && RELAUNCHED_ARG in args) {
+        repeat(40) {
+            if (lock == null) {
+                Thread.sleep(250)
+                lock = acquireSingleInstance()
+            }
+        }
+    }
     if (lock == null) {
         JOptionPane.showMessageDialog(null, "OpenFlux уже запущен — посмотрите значок в области уведомлений.", "OpenFlux", JOptionPane.INFORMATION_MESSAGE)
         exitProcess(0)

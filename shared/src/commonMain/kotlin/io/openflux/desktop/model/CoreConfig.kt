@@ -42,6 +42,9 @@ object CoreConfig {
             if (exit) {
                 appendLine("Role = exit")
                 appendLine("Mode = l4")
+            } else if (settings.fullTunnel) {
+                appendLine("Role = client")
+                appendLine("Inbound = tun")
             } else {
                 appendLine("Role = client")
                 appendLine("Inbound = socks5")
@@ -82,20 +85,25 @@ object CoreConfig {
             if (exit) {
                 add("--share")
                 if (settings.exitShareHost.isNotBlank()) add("--share-host=${settings.exitShareHost.trim()}")
-            } else {
+            } else if (!settings.fullTunnel) {
                 add("--http-proxy=$http")
             }
             if (settings.verboseCoreLog) add("--debug")
         }
-        return CoreLaunch(args, conf, if (exit) null else socks, if (exit) null else http, usesIpc = paths.ipcSocket != null)
+        val proxies = !exit && !settings.fullTunnel
+        return CoreLaunch(args, conf, if (proxies) socks else null, if (proxies) http else null, usesIpc = paths.ipcSocket != null)
     }
 
     private fun classic(profile: Profile, settings: AppSettings, paths: CorePaths, socks: String, http: String): CoreLaunch {
         val args = buildList {
             add("--role=client")
-            add("--inbound=socks5")
-            add("--socks5=$socks")
-            add("--http-proxy=$http")
+            if (settings.fullTunnel) {
+                add("--inbound=tun")
+            } else {
+                add("--inbound=socks5")
+                add("--socks5=$socks")
+                add("--http-proxy=$http")
+            }
             add("--transport=${profile.transport.cliName}")
             add("--codec=${profile.codec.cliName}")
             if (profile.transport == TransportType.ONEME) {
@@ -108,7 +116,8 @@ object CoreConfig {
             add("--cookie-store=${paths.cookieStore}")
             if (settings.verboseCoreLog) add("--debug")
         }
-        return CoreLaunch(args, null, socks, http, usesIpc = false)
+        return if (settings.fullTunnel) CoreLaunch(args, null, null, null, usesIpc = false)
+        else CoreLaunch(args, null, socks, http, usesIpc = false)
     }
 
     /** .conf values end at '#' or ';' (comments); refuse ones that would be cut. */

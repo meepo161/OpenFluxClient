@@ -63,6 +63,13 @@ interface PlatformServices {
     val coreVersion: String
     /** Whether this OS can point its system proxy at OpenFlux. */
     val systemProxySupported: Boolean
+    /** Whether the full tunnel (all traffic through a Wintun adapter) runs on this OS. */
+    val fullTunnelSupported: Boolean
+    /** Whether OpenFlux runs with administrator rights, which the full tunnel needs. */
+    val elevated: Boolean
+
+    /** Starts OpenFlux again as administrator (UAC) and exits this copy; false if that did not happen. */
+    fun restartElevated(): Boolean
 
     fun clipboardText(): String?
     fun setClipboardText(text: String)

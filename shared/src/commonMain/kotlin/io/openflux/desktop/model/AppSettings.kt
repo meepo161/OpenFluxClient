@@ -33,6 +33,12 @@ data class AppSettings(
      * for settings saved before that. See [migrated].
      */
     val systemProxyDefaultOn: Boolean = false,
+    /**
+     * Client: all of the computer's traffic through a Wintun adapter (the
+     * core's --inbound=tun), like the Android VPN, instead of the proxies.
+     * Needs administrator rights.
+     */
+    val fullTunnel: Boolean = false,
     val autoConnect: Boolean = false,
     val selectedProfileId: String? = null,
     val coreSource: CoreSource = CoreSource.Bundled,

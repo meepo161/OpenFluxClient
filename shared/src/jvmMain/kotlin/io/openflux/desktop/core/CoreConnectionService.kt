@@ -5,6 +5,7 @@ import io.openflux.desktop.data.restrictToOwner
 import io.openflux.desktop.model.AppSettings
 import io.openflux.desktop.model.CaptchaPrompt
 import io.openflux.desktop.ui.BrowserPage
+import io.openflux.desktop.platform.WindowsElevation
 import io.openflux.desktop.web.BrowserLog
 import io.openflux.desktop.model.ConnectionMode
 import io.openflux.desktop.model.ConnectionState
@@ -137,6 +138,7 @@ class CoreConnectionService(
                 if (current.coreSource == CoreSource.Custom) "Файл ядра не найден: ${current.customCorePath}"
                 else "Встроенное ядро не найдено. Укажите файл ядра в настройках",
             )
+            if (current.fullTunnel && current.mode == ConnectionMode.Client) checkFullTunnel(core)
             val runtime = AppDirs.runtime
             val tag = profile.id.take(8)
             val keyFile = if (profile.secret.isNotEmpty()) File(runtime, "key-$tag").also {
@@ -181,6 +183,17 @@ class CoreConnectionService(
             val message = e.message ?: "Не удалось запустить ядро"
             log(LogLevel.Error, message)
             _state.value = ConnectionState.Failed(profile, message)
+        }
+    }
+
+    /** What the core's Wintun client needs, said before it fails on its own. */
+    private fun checkFullTunnel(core: File) {
+        check(isWindows) { "Режим «Весь трафик» пока есть только в Windows" }
+        check(WindowsElevation.elevated) {
+            "Режиму «Весь трафик» нужны права администратора: перезапустите OpenFlux от имени администратора (кнопка на главной)"
+        }
+        check(File(core.parentFile, "wintun.dll").isFile) {
+            "Рядом с ядром нет wintun.dll (${core.parentFile}): он нужен для режима «Весь трафик», см. scripts/build-core.sh"
         }
     }
 
@@ -331,7 +344,8 @@ class CoreConnectionService(
     private fun applySystemProxy() {
         if (!isWindows) return
         val current = synchronized(lock) { run }
-        val wanted = settings.settings.value.systemProxy
+        // The full tunnel carries everything already; the proxies do not run then.
+        val wanted = settings.settings.value.systemProxy && current?.settings?.fullTunnel != true
         val connected = _state.value is ConnectionState.Connected || _state.value is ConnectionState.Reconnecting
         val address = current?.httpProxy
         if (!wanted || !connected || address == null || current.settings.mode != ConnectionMode.Client) {
@@ -359,15 +373,20 @@ class CoreConnectionService(
 
     override fun refreshExitAddress() {
         val checked = synchronized(lock) { run } ?: return
-        val proxy = checked.httpProxy ?: return
+        val proxy = checked.httpProxy
+        // Full tunnel: this app's own traffic goes through it like any other.
+        if (proxy == null && !checked.settings.fullTunnel) return
         _exitAddress.value = ExitAddress.Checking
         scope.launch {
             val result = runCatching {
-                val (host, port) = proxy.split(":").let { it[0] to it[1].toInt() }
-                val client = HttpClient.newBuilder()
-                    .proxy(ProxySelector.of(InetSocketAddress(host, port)))
-                    .connectTimeout(Duration.ofSeconds(20))
-                    .build()
+                val builder = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(20))
+                if (proxy != null) {
+                    val (host, port) = proxy.split(":").let { it[0] to it[1].toInt() }
+                    builder.proxy(ProxySelector.of(InetSocketAddress(host, port)))
+                } else {
+                    builder.proxy(HttpClient.Builder.NO_PROXY)
+                }
+                val client = builder.build()
                 val request = HttpRequest.newBuilder(URI("https://api.ipify.org")).timeout(Duration.ofSeconds(30)).build()
                 val body = client.send(request, HttpResponse.BodyHandlers.ofString()).body().trim()
                 require(IP.matches(body)) { "неожиданный ответ" }

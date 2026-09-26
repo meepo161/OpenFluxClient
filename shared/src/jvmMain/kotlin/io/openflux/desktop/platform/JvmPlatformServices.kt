@@ -43,6 +43,14 @@ class JvmPlatformServices(
 
     override val coreVersion: String get() = coreVersionProvider()
     override val systemProxySupported: Boolean = os.contains("win")
+    override val fullTunnelSupported: Boolean = os.contains("win")
+    override val elevated: Boolean get() = WindowsElevation.elevated
+
+    override fun restartElevated(): Boolean {
+        if (!WindowsElevation.restartElevated(RELAUNCHED_ARG)) return false
+        // The shutdown hook stops the core and puts the system proxy back.
+        kotlin.system.exitProcess(0)
+    }
 
     private val clipboard get() = Toolkit.getDefaultToolkit().systemClipboard
 
@@ -139,3 +147,6 @@ class JvmPlatformServices(
         const val DESKTOP_TAG_PREFIX = "desktop-v"
     }
 }
+
+/** Passed to a copy started by restartElevated: it waits for this one to exit. */
+const val RELAUNCHED_ARG = "--relaunched"

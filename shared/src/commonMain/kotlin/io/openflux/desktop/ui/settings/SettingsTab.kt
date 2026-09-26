@@ -1,5 +1,6 @@
 package io.openflux.desktop.ui.settings
 
+import io.openflux.desktop.model.profile
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -267,6 +268,22 @@ private fun SystemProxySettings(model: SettingsScreenModel) {
     if (!model.container.platform.systemProxySupported) {
         Banner("Системный прокси пока поддерживается только в Windows. Укажите SOCKS5 127.0.0.1:${settings.socksPort} в настройках нужных программ.", Tone.Neutral)
         return
+    }
+    if (model.container.platform.fullTunnelSupported) {
+        AppCard(padding = AppTheme.spacing.s) {
+            SwitchRow(
+                "Весь трафик компьютера (TUN)",
+                "Адаптер Wintun забирает весь трафик, включая игры и UDP; системный прокси тогда не нужен. " +
+                    "Нужны права администратора" + if (model.container.platform.elevated) "." else ": запустите OpenFlux от имени администратора.",
+                settings.fullTunnel,
+                { v ->
+                    model.update { it.copy(fullTunnel = v) }
+                    // A running connection restarts in the new mode.
+                    val state = model.container.connection.state.value
+                    if (state.isActive) state.profile?.let(model.container.connection::connect)
+                },
+            )
+        }
     }
     AppCard(padding = AppTheme.spacing.s) {
         SwitchRow(
