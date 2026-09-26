@@ -110,8 +110,8 @@
 
 ```bash
 # 1. Ядро для этой системы в desktopApp/resources/<windows|macos|linux> (+ wintun.dll для Windows)
-git clone -b desktop-core https://github.com/meepo161/openfluxandroidfork ../openfluxandroidfork
-scripts/build-core.sh ../openfluxandroidfork                          # или GOOS=windows GOARCH=amd64 …
+git clone -b fork-main https://github.com/meepo161/openfluxfork ../OpenFlux
+scripts/build-core.sh ../OpenFlux                                     # или GOOS=windows GOARCH=amd64 …
 
 # 2. Приложение
 ./gradlew :desktopApp:run                                             # запустить
@@ -131,7 +131,7 @@ scripts/build-core.sh ../openfluxandroidfork                          # или G
 git tag v2.1.0 && git push origin v2.1.0
 ```
 
-Workflow [`release.yml`](.github/workflows/release.yml) собирает четыре сборки параллельно — Windows x64 (`windows-2022`), Linux x64 (`ubuntu-22.04`), macOS Apple Silicon (`macos-14`) и macOS Intel (`macos-15-intel`). Каждая собирает ядро из [`meepo161/openfluxandroidfork`](https://github.com/meepo161/openfluxandroidfork) под свою платформу (для Windows ещё и официальный `wintun.dll` с проверкой SHA-256), прогоняет тесты и пакует приложение; затем все файлы публикуются одним релизом вместе с `SHA256SUMS.txt`.
+Workflow [`release.yml`](.github/workflows/release.yml) собирает четыре сборки параллельно — Windows x64 (`windows-2022`), Linux x64 (`ubuntu-22.04`), macOS Apple Silicon (`macos-14`) и macOS Intel (`macos-15-intel`). Каждая собирает ядро из ветки `fork-main` репозитория [`meepo161/openfluxfork`](https://github.com/meepo161/openfluxfork) под свою платформу (для Windows ещё и официальный `wintun.dll` с проверкой SHA-256), прогоняет тесты и пакует приложение; затем все файлы публикуются одним релизом вместе с `SHA256SUMS.txt`.
 
 Перед публикацией каждая сборка проверяет, что в пакет попали нативные библиотеки Skia для своей платформы (`skiko-awt-runtime-<os>-<arch>`), ядро и `wintun.dll` — без skiko окно не нарисуется, а сборка при этом не упадёт. Флаг `-PwindowsPackage=true` добавляет Windows-библиотеки skiko, даже если собирать не на Windows.
 
@@ -160,7 +160,8 @@ shared/
 
 - [**OpenFlux**](https://github.com/p1neappleXpress/OpenFlux) — ядро и транспорты, автор [p1neappleXpress](https://github.com/p1neappleXpress)
 - [**OpenFluxAndroid**](https://github.com/p1neappleXpress/OpenFluxAndroid) — Android-клиент, автор [p1neappleXpress](https://github.com/p1neappleXpress)
-- [**openfluxandroidfork**](https://github.com/meepo161/openfluxandroidfork) — Android-клиент с мастером нод и ядро, которое собирает этот клиент
+- [**openfluxfork**](https://github.com/meepo161/openfluxfork) — форк ядра, из которого собирается этот клиент (ветка `fork-main`)
+- [**openfluxandroidfork**](https://github.com/meepo161/openfluxandroidfork) — Android-клиент с мастером нод
 
 Спасибо p1neappleXpress за OpenFlux и оригинальные клиенты.
 
