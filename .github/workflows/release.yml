@@ -6,7 +6,6 @@ name: Release
 on:
   push:
     tags: ['v*']
-    branches: ['desktop-core']  # TEMP: check the build before the first tag
   workflow_dispatch:
     inputs:
       version:
