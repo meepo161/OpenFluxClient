@@ -249,7 +249,7 @@ jobs:
           go install golang.org/x/mobile/cmd/gobind@v0.0.0-20260908204917-8b95e45f8d3e
 
       - name: Build the Android core
-        run: scripts/build-android-core.sh .core
+        run: bash scripts/build-android-core.sh .core
 
       - name: Tests
         run: ./gradlew --no-daemon :shared:jvmTest
