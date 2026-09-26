@@ -4,8 +4,9 @@
 #
 #   scripts/build-core.sh ../openfluxandroidfork [image]
 #
-# Writes desktopApp/resources/windows/openflux-windows-amd64.exe and
-# openflux-core.version (branch@commit, shown under Settings → About).
+# Writes desktopApp/resources/windows/openflux-windows-amd64.exe,
+# wintun.dll (for the full tunnel) and openflux-core.version (branch@commit,
+# shown under Settings → About).
 set -euo pipefail
 
 core=$(cd "${1:?path to the OpenFlux core checkout}" && pwd)
@@ -25,6 +26,14 @@ MSYS_NO_PATHCONV=1 docker run --rm \
   -e GOOS=windows -e GOARCH=amd64 -e CGO_ENABLED=0 -e GOFLAGS=-buildvcs=false \
   "$image" \
   go build -trimpath -ldflags "-s -w" -o /out/openflux-windows-amd64.exe .
+
+# Wintun for the full tunnel (--inbound=tun): the core loads wintun.dll from
+# its own folder. The official build, checked against its published SHA-256.
+wintun_zip=$(mktemp)
+curl -fsSL -o "$wintun_zip" https://www.wintun.net/builds/wintun-0.14.1.zip
+echo "07c256185d6ee3652e09fa55c0b673e2624b565e02c4b9091c79ca7d2f24ef51  $wintun_zip" | sha256sum -c - >/dev/null
+unzip -p "$wintun_zip" wintun/bin/amd64/wintun.dll > "$out/wintun.dll"
+rm -f "$wintun_zip"
 
 branch=$(git -C "$core" rev-parse --abbrev-ref HEAD)
 rev=$(git -C "$core" describe --always --dirty)

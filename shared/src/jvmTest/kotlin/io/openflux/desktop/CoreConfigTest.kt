@@ -54,6 +54,29 @@ class CoreConfigTest {
     }
 
     @Test
+    fun fullTunnelUsesTheTunInboundAndNoProxies() {
+        val launch = CoreConfig.build(session, AppSettings(fullTunnel = true), paths)
+        val conf = launch.conf!!
+        assertTrue("Inbound = tun" in conf)
+        assertFalse("Socks5" in conf)
+        assertEquals(
+            listOf("--config", "C:/rt/p.conf", "--url=https://disk.yandex.ru/i/one", "--ipc-socket=C:/rt/ipc.sock"),
+            launch.arguments,
+        )
+        assertNull(launch.socksAddress)
+        assertNull(launch.httpProxyAddress)
+
+        val classic = CoreConfig.build(
+            Profile(id = "c", name = "C", transport = TransportType.VYANDEX, value = "https://disk.yandex.ru/i/one"),
+            AppSettings(fullTunnel = true),
+            paths.copy(keyFile = null, ipcSocket = null),
+        )
+        assertTrue("--inbound=tun" in classic.arguments)
+        assertFalse(classic.arguments.any { it.startsWith("--socks5") || it.startsWith("--http-proxy") })
+        assertNull(classic.httpProxyAddress)
+    }
+
+    @Test
     fun sessionExitListensForDirect() {
         val settings = AppSettings(mode = ConnectionMode.Exit, exitDirectPort = 9000, exitShareHost = "my.host", verboseCoreLog = true)
         val launch = CoreConfig.build(session, settings, paths)

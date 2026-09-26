@@ -344,6 +344,9 @@ class NodeWizardModelTest {
         override val appVersion = "test"
         override val coreVersion = "test"
         override val systemProxySupported = false
+        override val fullTunnelSupported = false
+        override val elevated = false
+        override fun restartElevated() = false
         override fun clipboardText(): String? = clipboard
         override fun setClipboardText(text: String) { clipboard = text }
         override fun qrFromClipboardImage(): String? = null

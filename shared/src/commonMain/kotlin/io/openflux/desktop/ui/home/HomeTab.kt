@@ -354,7 +354,30 @@ private fun DetailsColumn(model: HomeScreenModel, selected: Profile?, state: Con
             }
         }
 
-        if (!exitMode && container.platform.systemProxySupported) {
+        if (!exitMode && container.platform.fullTunnelSupported) {
+            AppCard(padding = AppTheme.spacing.s) {
+                SwitchRow(
+                    title = "Весь трафик компьютера",
+                    description = "Все программы, игры и UDP идут через ноду, как VPN на Android. Нужны права администратора.",
+                    checked = settings.fullTunnel,
+                    onCheckedChange = model::setFullTunnel,
+                )
+                if (settings.fullTunnel && !container.platform.elevated) {
+                    Banner(
+                        "OpenFlux запущен без прав администратора, а они нужны этому режиму.",
+                        Tone.Warning,
+                        modifier = Modifier.padding(AppTheme.spacing.s),
+                        action = {
+                            TextAction("Перезапустить от имени администратора", {
+                                if (!model.restartElevated()) toaster.show("Не удалось перезапустить: разрешите запуск в окне Windows", Tone.Warning)
+                            })
+                        },
+                    )
+                }
+            }
+        }
+
+        if (!exitMode && !settings.fullTunnel && container.platform.systemProxySupported) {
             AppCard(padding = AppTheme.spacing.s) {
                 SwitchRow(
                     title = "Системный прокси Windows",
