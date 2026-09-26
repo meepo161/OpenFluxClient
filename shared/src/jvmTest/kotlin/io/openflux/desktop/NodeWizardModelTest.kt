@@ -219,6 +219,66 @@ class NodeWizardModelTest {
     }
 
     @Test
+    fun droppedConnectionIsOpenedAgainForThePlan() = runTest {
+        val env = Env()
+        val wizard = NodeWizardModel(env.container, this)
+        env.settings.update { it.copy(knownHostKeys = mapOf("$serverIp:22" to "SHA256:new")) }
+        wizard.host = serverIp
+        wizard.password = "p"
+        wizard.connect()
+        advanceUntilIdle()
+        assertEquals(1, env.node.connects)
+        // SSH dropped while the user was signing in to Yandex.
+        env.node.dropped = true
+        wizard.createDocument()
+        advanceUntilIdle()
+        assertNull(wizard.error)
+        assertEquals(WizardStep.Plan, wizard.step)
+        assertEquals(2, env.node.connects)
+        assertEquals(listOf(true), env.node.plannedWithCookies)
+    }
+
+    @Test
+    fun quietConnectionIsOpenedAgainBeforeInstall() = runTest {
+        val env = Env()
+        val wizard = NodeWizardModel(env.container, this)
+        env.settings.update { it.copy(knownHostKeys = mapOf("$serverIp:22" to "SHA256:new")) }
+        wizard.host = serverIp
+        wizard.password = "p"
+        wizard.connect()
+        advanceUntilIdle()
+        wizard.documentInput = docUrl
+        wizard.checkDocument()
+        advanceUntilIdle()
+        assertEquals(1, env.node.connects)
+        // The user reads the plan for a while: install must not reuse a dead connection.
+        env.platform.skipped += 5 * 60_000L
+        env.node.dropped = true
+        wizard.install()
+        advanceUntilIdle()
+        assertEquals(2, env.node.connects)
+        assertTrue(wizard.installed)
+    }
+
+    @Test
+    fun scriptErrorsAreNotRetriedForever() = runTest {
+        val env = Env()
+        val wizard = NodeWizardModel(env.container, this)
+        env.settings.update { it.copy(knownHostKeys = mapOf("$serverIp:22" to "SHA256:new")) }
+        wizard.host = serverIp
+        wizard.password = "p"
+        wizard.connect()
+        advanceUntilIdle()
+        env.node.planError = "порт 31337 занят"
+        wizard.documentInput = docUrl
+        wizard.checkDocument()
+        advanceUntilIdle()
+        assertEquals("порт 31337 занят", wizard.error)
+        assertEquals(WizardStep.Document, wizard.step)
+        assertEquals(2, env.node.connects)
+    }
+
+    @Test
     fun servers() {
         val a = KnownServer("a", 22, "root")
         val b = KnownServer("b", 22, "root")
@@ -243,6 +303,10 @@ class NodeWizardModelTest {
 
     private class FakeNode(private val sudoFails: Boolean) : NodeWizardService {
         val applied = mutableListOf<String>()
+        var connects = 0
+        /** The SSH connection is gone: calls fail until the next connect. */
+        var dropped = false
+        var planError: String? = null
         val plannedWithCookies = mutableListOf<Boolean>()
         var documentName = ""
         var closed = false
@@ -250,17 +314,22 @@ class NodeWizardModelTest {
 
         override suspend fun connect(target: SshTarget): ServerProbe {
             if (target.hostKey != "SHA256:new") throw NodeWizardException("новый сервер", hostKey = "SHA256:new", trust = true)
+            connects++
+            dropped = false
             return ServerProbe(arch = "amd64", os = "Debian 12", systemd = true, sudo = "password")
         }
 
         override suspend fun newChannel() = NewChannel("of-test12", "ab".repeat(32))
 
         override suspend fun plan(channel: String, withCookies: Boolean): NodePlan {
+            if (dropped) throw NodeWizardException("скрипт установки не ответил: ")
+            planError?.let { throw NodeWizardException(it) }
             plannedWithCookies += withCookies
             return NodePlan(channel = channel, port = 31337, actions = listOf("Установить ядро"))
         }
 
         override suspend fun apply(channel: NewChannel, documentUrl: String, port: Int, sudoPassword: String, cookieHeader: String) {
+            if (dropped) throw NodeWizardException("не удалось передать конфигурацию на сервер")
             if (sudoFails) throw NodeWizardException("sudo не принял пароль", sudo = true)
             applied += listOf(channel.id, documentUrl, port.toString(), sudoPassword, cookieHeader)
         }
@@ -340,6 +409,8 @@ class NodeWizardModelTest {
 
     private class FakePlatform : PlatformServices {
         var clipboard: String? = null
+        /** Moves [now] forward, as if the user had waited. */
+        var skipped = 0L
         val opened = mutableListOf<String>()
         override val appVersion = "test"
         override val coreVersion = "test"
@@ -356,7 +427,7 @@ class NodeWizardModelTest {
         override fun qrMatrix(text: String): List<BooleanArray> = emptyList()
         override fun openUrl(url: String) { opened += url }
         override fun newSecret() = "00".repeat(32)
-        override fun now() = System.currentTimeMillis()
+        override fun now() = System.currentTimeMillis() + skipped
         override suspend fun latestRelease(): String? = null
     }
 }

@@ -69,6 +69,10 @@ class NodeWizardModel(private val container: AppContainer, private val scope: Co
         private set
     var probe by mutableStateOf<ServerProbe?>(null)
         private set
+    /** The server the wizard is connected to, to reconnect after SSH drops. */
+    private var target: SshTarget? = null
+    /** When the server last answered: SSH may drop while the user signs in to Yandex. */
+    private var lastServerReply = 0L
 
     // Step 2: document.
     var channel by mutableStateOf<NewChannel?>(null)
@@ -163,6 +167,8 @@ class NodeWizardModel(private val container: AppContainer, private val scope: Co
             } else false
         }) {
             probe = service.connect(target)
+            this.target = target
+            lastServerReply = container.platform.now()
             settings.update { s -> s.copy(knownServers = NodeServers.remember(s.knownServers, KnownServer(host, port, user))) }
             if (channel == null) channel = service.newChannel()
             if (name.isBlank()) name = "Нода $host"
@@ -223,7 +229,8 @@ class NodeWizardModel(private val container: AppContainer, private val scope: Co
             "Яндекс попросил проверку у этого устройства, поэтому документ проверит сама нода при запуске."
         }
         busy = "Спрашиваю сервер, что изменится…"
-        plan = service.plan(channel!!.id, withCookies = yandexCookies.isNotEmpty())
+        val withCookies = yandexCookies.isNotEmpty()
+        plan = onServer(retry = true) { service.plan(channel!!.id, withCookies) }
         if (needsSudoPassword && sudoPassword.isEmpty() && !useKey) sudoPassword = password
         step = WizardStep.Plan
     }
@@ -231,7 +238,9 @@ class NodeWizardModel(private val container: AppContainer, private val scope: Co
     fun forgetYandexSignIn() {
         yandexCookies = ""
         // The plan lists the sign-in step; ask again without it.
-        launchCall("Спрашиваю сервер, что изменится…") { plan = service.plan(channel!!.id, withCookies = false) }
+        launchCall("Спрашиваю сервер, что изменится…") {
+            plan = onServer(retry = true) { service.plan(channel!!.id, withCookies = false) }
+        }
     }
 
     // ---- step 3: install ----
@@ -243,7 +252,7 @@ class NodeWizardModel(private val container: AppContainer, private val scope: Co
         launchCall("Устанавливаю ноду: скачиваю ядро, пишу конфигурацию, запускаю…", onFailure = { e ->
             if (e.sudo) { error = "sudo не принял пароль"; true } else false
         }) {
-            service.apply(channel, documentUrl, plan.port, sudoPassword, yandexCookies)
+            onServer { service.apply(channel, documentUrl, plan.port, sudoPassword, yandexCookies) }
             installed = true
             yandexCookies = ""
             val link = service.shareLink(profileName(), documentUrl, channel.key, host.trim(), plan.port)
@@ -376,7 +385,7 @@ class NodeWizardModel(private val container: AppContainer, private val scope: Co
         launchCall("Удаляю канал с сервера…", onFailure = { e ->
             if (e.sudo) { error = "sudo не принял пароль"; true } else false
         }) {
-            service.remove(channel.id, sudoPassword)
+            onServer { service.remove(channel.id, sudoPassword) }
             installed = false
             notice = "Канал ${channel.id} удалён с сервера"
         }
@@ -408,11 +417,44 @@ class NodeWizardModel(private val container: AppContainer, private val scope: Co
         service.close()
         val state = connection.state.value
         if (!saved && profile != null && state.profile?.id == profile?.id && state.isActive) connection.disconnect()
+        target = null
         password = ""
         privateKey = ""
         passphrase = ""
         sudoPassword = ""
         yandexCookies = ""
+    }
+
+    /**
+     * A call over the wizard's SSH connection. The connection is opened on
+     * step 1 and used again only after the user has signed in to Yandex and
+     * read the plan, which can take minutes: long enough for a mobile network
+     * or the server's sshd to drop it, and then every call fails with "скрипт
+     * установки не ответил". So after a pause the wizard connects again (a new
+     * SSH session, the pinned installer downloaded and checked anew) before
+     * the call, and a read-only call ([retry]) that fails reconnects and is
+     * tried once more.
+     */
+    private suspend fun <T> onServer(retry: Boolean = false, call: suspend () -> T): T {
+        val target = target
+        if (target != null && container.platform.now() - lastServerReply > SSH_IDLE_MS) reconnect(target)
+        val result = try {
+            call()
+        } catch (e: NodeWizardException) {
+            if (!retry || target == null || e.sudo || e.captcha || e.hostKey != null) throw e
+            reconnect(target)
+            call()
+        }
+        lastServerReply = container.platform.now()
+        return result
+    }
+
+    private suspend fun reconnect(target: SshTarget) {
+        val previous = busy
+        busy = "Подключаюсь к серверу заново…"
+        probe = service.connect(target)
+        lastServerReply = container.platform.now()
+        busy = previous
     }
 
     /**
@@ -447,5 +489,7 @@ class NodeWizardModel(private val container: AppContainer, private val scope: Co
         private const val VERIFY_TIMEOUT_MS = 150_000L
         private const val POLL_MS = 400L
         private const val RETRY_MS = 4000L
+        /** A connection quiet for longer is opened again before the next call. */
+        private const val SSH_IDLE_MS = 60_000L
     }
 }
