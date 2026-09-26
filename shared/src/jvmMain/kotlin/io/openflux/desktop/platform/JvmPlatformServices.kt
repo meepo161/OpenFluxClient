@@ -143,8 +143,9 @@ class JvmPlatformServices(
     }
 
     companion object {
-        const val RELEASE_REPO = "meepo161/openfluxandroidfork"
-        const val DESKTOP_TAG_PREFIX = "desktop-v"
+        /** Where the desktop releases are published, tagged v1.2.3. */
+        const val RELEASE_REPO = "meepo161/openfluxfordesktop"
+        const val DESKTOP_TAG_PREFIX = "v"
     }
 }
 
