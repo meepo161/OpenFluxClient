@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
 # Builds the core the app bundles from an OpenFlux checkout (needs the IPC
-# status, --http-proxy, --node-wizard and full tunnel changes, see
-# meepo161/openfluxandroidfork) with the local Go, or in Docker without one:
+# status, --http-proxy, --node-wizard and full tunnel changes: the fork-main
+# branch of meepo161/openfluxfork) with the local Go, or in Docker without one:
 #
-#   scripts/build-core.sh ../openfluxandroidfork [docker image]
-#   GOOS=linux GOARCH=arm64 scripts/build-core.sh ../openfluxandroidfork
+#   scripts/build-core.sh ../OpenFlux [docker image]
+#   GOOS=linux GOARCH=arm64 scripts/build-core.sh ../OpenFlux
 #
 # The target is GOOS/GOARCH (default: this machine). Writes into
 # desktopApp/resources/<windows|macos|linux>: openflux-<os>-<arch>[.exe],

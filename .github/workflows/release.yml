@@ -31,8 +31,8 @@ env:
   # The OpenFlux core the app bundles (IPC status, --http-proxy,
   # --node-wizard, the Windows full tunnel). Override with the repository
   # variables CORE_REPO / CORE_REF or the workflow input.
-  CORE_REPO: ${{ vars.CORE_REPO || 'meepo161/openfluxandroidfork' }}
-  CORE_REF: ${{ inputs.core_ref || vars.CORE_REF || 'desktop-core' }}
+  CORE_REPO: ${{ vars.CORE_REPO || 'meepo161/openfluxfork' }}
+  CORE_REF: ${{ inputs.core_ref || vars.CORE_REF || 'fork-main' }}
   WINTUN_VERSION: '0.14.1'
   WINTUN_SHA256: '07c256185d6ee3652e09fa55c0b673e2624b565e02c4b9091c79ca7d2f24ef51'
 
