@@ -123,17 +123,21 @@ scripts/build-core.sh ../OpenFlux                                     # или �
 
 ### Релизы
 
-Релиз собирается сам: достаточно запушить тег.
+Обычный релиз собирается сам: достаточно запушить тег. Для согласованного
+релиза ядра и всех клиентов источник версии — тег `vX.Y.Z` в
+[`meepo161/openfluxfork`](https://github.com/meepo161/openfluxfork): его
+workflow передаёт этот тег как неизменяемый `core_ref` и тот же номер версии в
+этот workflow.
 
 ```bash
 git tag v2.1.0 && git push origin v2.1.0
 ```
 
-Workflow [`release.yml`](.github/workflows/release.yml) собирает четыре сборки параллельно — Windows x64 (`windows-2022`), Linux x64 (`ubuntu-22.04`), macOS Apple Silicon (`macos-14`) и macOS Intel (`macos-15-intel`). Каждая собирает ядро из ветки `fork-main` репозитория [`meepo161/openfluxfork`](https://github.com/meepo161/openfluxfork) под свою платформу (для Windows ещё и официальный `wintun.dll` с проверкой SHA-256), прогоняет тесты и пакует приложение; затем все файлы публикуются одним релизом вместе с `SHA256SUMS.txt`.
+Workflow [`release.yml`](.github/workflows/release.yml) собирает четыре desktop-сборки параллельно — Windows x64 (`windows-2022`), Linux x64 (`ubuntu-22.04`), macOS Apple Silicon (`macos-14`) и macOS Intel (`macos-15-intel`) — а также Android APK. Каждая desktop-сборка и Android-библиотека собирают ядро из указанного `core_ref` репозитория [`meepo161/openfluxfork`](https://github.com/meepo161/openfluxfork); для Windows дополнительно берётся официальный `wintun.dll` с проверкой SHA-256. Затем все пакеты и APK публикуются одним релизом вместе с `SHA256SUMS.txt`.
 
 Перед публикацией каждая сборка проверяет, что в пакет попали нативные библиотеки Skia для своей платформы (`skiko-awt-runtime-<os>-<arch>`), ядро и `wintun.dll` — без skiko окно не нарисуется, а сборка при этом не упадёт. Флаг `-PwindowsPackage=true` добавляет Windows-библиотеки skiko, даже если собирать не на Windows.
 
-Ветку или коммит ядра можно задать переменными репозитория `CORE_REPO` / `CORE_REF` или при ручном запуске («Run workflow»).
+Ветку или коммит ядра можно задать переменными репозитория `CORE_REPO` / `CORE_REF` или при ручном запуске («Run workflow»). Для согласованного релиза используйте только неизменяемый тег `core_ref`; запуск из ядра требует его `CLIENT_RELEASE_TOKEN` с правом **Actions: write** к этому репозиторию. Перед первым релизом можно вручную запустить workflow с `publish=false`: соберутся проверочные артефакты, но GitHub Release не будет создан.
 
 ## Устройство
 
