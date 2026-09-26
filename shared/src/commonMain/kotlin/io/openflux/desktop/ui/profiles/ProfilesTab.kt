@@ -16,6 +16,8 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
+import io.openflux.desktop.ui.components.ButtonRow
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -93,7 +95,6 @@ import io.openflux.desktop.ui.components.Tone
 import io.openflux.desktop.ui.look
 import io.openflux.desktop.ui.node.NodeWizardPane
 import io.openflux.desktop.ui.shell.LocalShell
-import io.openflux.desktop.ui.shell.WidthClass
 import io.openflux.desktop.ui.theme.AppTheme
 import org.jetbrains.compose.resources.painterResource
 
@@ -136,15 +137,7 @@ private fun ProfilesScreen(model: ProfilesScreenModel) {
     }
 
     val selected = profiles.firstOrNull { it.id == model.selectedId }
-    val compact = shell.widthClass == WidthClass.Compact
-    // Side by side, an empty detail pane wastes the space: show the profile
-    // Home would connect.
     val preferredId = LocalAppContainer.current.settings.settings.collectAsState().value.selectedProfileId
-    LaunchedEffect(compact, selected == null, profiles.size) {
-        if (!compact && selected == null && model.editor == null && profiles.isNotEmpty()) {
-            model.selectedId = (profiles.firstOrNull { it.id == preferredId } ?: profiles.first()).id
-        }
-    }
     val showDetail = model.editor != null || selected != null
 
     model.wizard?.let { wizard ->
@@ -152,13 +145,24 @@ private fun ProfilesScreen(model: ProfilesScreenModel) {
         return
     }
 
+    // List and details side by side when both get a usable width, else one at a time.
+    BoxWithConstraints(Modifier.fillMaxSize()) {
+    val compact = maxWidth < 720.dp
+    val listWidth = (maxWidth * 0.32f).coerceIn(280.dp, 400.dp)
+    // Side by side, an empty detail pane wastes the space: show the profile
+    // Home would connect.
+    LaunchedEffect(compact, selected == null, profiles.size) {
+        if (!compact && selected == null && model.editor == null && profiles.isNotEmpty()) {
+            model.selectedId = (profiles.firstOrNull { it.id == preferredId } ?: profiles.first()).id
+        }
+    }
     Row(Modifier.fillMaxSize()) {
         if (!compact || !showDetail) {
             ProfileListPane(
                 model = model,
                 profiles = profiles,
                 state = state,
-                modifier = if (compact) Modifier.fillMaxSize() else Modifier.width(AppTheme.dimens.masterPaneWidth).fillMaxHeight(),
+                modifier = if (compact) Modifier.fillMaxSize() else Modifier.width(listWidth).fillMaxHeight(),
             )
         }
         if (!compact || showDetail) {
@@ -178,7 +182,7 @@ private fun ProfilesScreen(model: ProfilesScreenModel) {
                             },
                             resource = AppIcons.Public,
                         ) {
-                            Row(horizontalArrangement = Arrangement.spacedBy(AppTheme.spacing.s)) {
+                            ButtonRow(alignment = Alignment.CenterHorizontally) {
                                 AppButton("Импорт", { model.importOpen = true }, leading = Icons.Rounded.ContentPaste)
                                 AppButton("Создать", model::startNew, style = ButtonStyle.Secondary)
                                 AppButton("Своя нода", model::openWizard, style = ButtonStyle.Secondary, leading = Icons.Rounded.Dns)
@@ -188,6 +192,7 @@ private fun ProfilesScreen(model: ProfilesScreenModel) {
                 }
             }
         }
+    }
     }
 
     if (model.importOpen) ImportDialog(model)
@@ -341,6 +346,7 @@ private fun ProfileDetails(model: ProfilesScreenModel, profile: Profile, state: 
     val scrollbars = LocalScrollbars.current
     Box(Modifier.fillMaxSize()) {
         Column(Modifier.fillMaxSize().verticalScroll(scroll).padding(horizontal = AppTheme.spacing.page, vertical = AppTheme.spacing.xl)) {
+            Column(Modifier.widthIn(max = 960.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 if (onBack != null) {
                     AppIconButton("Назад к списку", onBack, resource = AppIcons.Back)
@@ -350,12 +356,12 @@ private fun ProfileDetails(model: ProfilesScreenModel, profile: Profile, state: 
                 Spacer(Modifier.width(AppTheme.spacing.l))
                 Column(Modifier.weight(1f)) {
                     Text(profile.name, style = AppTheme.typography.pageTitle, color = AppTheme.colors.text, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                    Text(profile.summary, style = AppTheme.typography.bodySmall, color = AppTheme.colors.textSecondary)
+                    Text(profile.summary, style = AppTheme.typography.bodySmall, color = AppTheme.colors.textSecondary, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 }
                 if (running) StatusBadge(state.look().title, state.look().tone)
             }
             Spacer(Modifier.height(AppTheme.spacing.xl))
-            Row(horizontalArrangement = Arrangement.spacedBy(AppTheme.spacing.s)) {
+            ButtonRow {
                 if (running) AppButton("Отключить", model.connection::disconnect, style = ButtonStyle.Danger, leading = Icons.Rounded.Stop)
                 else AppButton("Подключить", { model.connect(profile) }, leading = Icons.Rounded.PlayArrow)
                 AppButton("Изменить", { model.startEdit(profile) }, style = ButtonStyle.Secondary, leading = Icons.Rounded.Edit)
@@ -406,10 +412,10 @@ private fun ProfileDetails(model: ProfilesScreenModel, profile: Profile, state: 
                 io.openflux.desktop.ui.components.Banner(problems.joinToString("\n"), Tone.Warning)
             }
             Spacer(Modifier.height(AppTheme.spacing.xl))
-            Row {
+            ButtonRow {
                 AppButton("Дублировать", { model.duplicate(profile) }, style = ButtonStyle.Ghost, leading = Icons.Rounded.FileCopy)
-                Spacer(Modifier.width(AppTheme.spacing.s))
                 AppButton("Удалить", { model.deleteFor = profile }, style = ButtonStyle.Ghost, leading = Icons.Rounded.Delete)
+            }
             }
         }
         scrollbars.Vertical(scroll, Modifier.align(Alignment.CenterEnd))

@@ -33,6 +33,7 @@ import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import io.openflux.desktop.ui.components.AppIcons
 import io.openflux.desktop.ui.components.Tone
@@ -55,9 +56,12 @@ fun ConnectButton(
     enabled: Boolean,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
+    /** The outer ring; the button and inner ring keep their proportions to it. */
+    ringSize: Dp = AppTheme.dimens.connectRingOuter,
 ) {
     val colors = AppTheme.colors
     val dimens = AppTheme.dimens
+    val buttonSize = ringSize * (dimens.connectButton / dimens.connectRingOuter)
     val idle = tone == Tone.Neutral
     val (fillTarget, pressedTarget) = when (tone) {
         Tone.Accent, Tone.Success -> colors.accent to colors.accentPressed
@@ -78,8 +82,8 @@ fun ConnectButton(
     val ringColor = colors.border
     val waveColor = fillTarget
 
-    Box(modifier.size(dimens.connectRingOuter), contentAlignment = Alignment.Center) {
-        Canvas(Modifier.size(dimens.connectRingOuter)) {
+    Box(modifier.size(ringSize), contentAlignment = Alignment.Center) {
+        Canvas(Modifier.size(ringSize)) {
             val outer = size.minDimension / 2
             val inner = outer * (dimens.connectRingInner / dimens.connectRingOuter)
             drawCircle(ringColor, radius = outer - 1.dp.toPx(), style = Stroke(1.dp.toPx()))
@@ -95,7 +99,7 @@ fun ConnectButton(
         }
         Column(
             Modifier
-                .size(dimens.connectButton)
+                .size(buttonSize)
                 .scale(scale)
                 .shadow(if (idle) 2.dp else 10.dp, CircleShape, ambientColor = fillTarget, spotColor = fillTarget)
                 .clip(CircleShape)

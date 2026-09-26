@@ -4,6 +4,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
@@ -91,7 +92,16 @@ fun KeyValueRow(
         modifier.fillMaxWidth().padding(horizontal = AppTheme.spacing.l, vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Text(key, style = AppTheme.typography.body, color = AppTheme.colors.textSecondary, modifier = Modifier.weight(1f))
+        // The key keeps its words; a long value gives way and ends in "…".
+        Text(
+            key,
+            style = AppTheme.typography.body,
+            color = AppTheme.colors.textSecondary,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.widthIn(max = 260.dp),
+        )
+        Spacer(Modifier.size(AppTheme.spacing.l))
         Text(
             value,
             style = AppTheme.typography.bodyStrong,
@@ -99,7 +109,7 @@ fun KeyValueRow(
             textAlign = TextAlign.End,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.widthIn(max = 320.dp),
+            modifier = Modifier.weight(1f),
         )
         if (trailing != null) {
             Spacer(Modifier.size(AppTheme.spacing.s))
@@ -168,23 +178,31 @@ fun Banner(
     action: @Composable (() -> Unit)? = null,
 ) {
     val color = toneColor(tone)
-    Row(
+    BoxWithConstraints(
         modifier
             .fillMaxWidth()
             .clip(AppTheme.shapes.card)
             .background(color.copy(alpha = 0.10f))
             .border(1.dp, color.copy(alpha = 0.35f), AppTheme.shapes.card)
             .padding(horizontal = AppTheme.spacing.l, vertical = AppTheme.spacing.m),
-        verticalAlignment = Alignment.CenterVertically,
     ) {
-        if (icon != null) {
-            Icon(icon, null, tint = color, modifier = Modifier.size(20.dp))
-            Spacer(Modifier.size(AppTheme.spacing.m))
-        }
-        Text(text, style = AppTheme.typography.body, color = AppTheme.colors.text, modifier = Modifier.weight(1f))
-        if (action != null) {
-            Spacer(Modifier.size(AppTheme.spacing.m))
-            action()
+        // A narrow banner puts its action under the text instead of squeezing it.
+        val stacked = action != null && maxWidth < 520.dp
+        Column {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                if (icon != null) {
+                    Icon(icon, null, tint = color, modifier = Modifier.size(20.dp))
+                    Spacer(Modifier.size(AppTheme.spacing.m))
+                }
+                Text(text, style = AppTheme.typography.body, color = AppTheme.colors.text, modifier = Modifier.weight(1f))
+                if (action != null && !stacked) {
+                    Spacer(Modifier.size(AppTheme.spacing.m))
+                    action()
+                }
+            }
+            if (action != null && stacked) {
+                Box(Modifier.fillMaxWidth().padding(top = AppTheme.spacing.xs), contentAlignment = Alignment.CenterEnd) { action() }
+            }
         }
     }
 }

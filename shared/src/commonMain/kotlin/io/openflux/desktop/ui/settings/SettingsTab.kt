@@ -12,6 +12,8 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
+import io.openflux.desktop.ui.components.fillUpTo
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -64,8 +66,6 @@ import io.openflux.desktop.ui.components.Segmented
 import io.openflux.desktop.ui.components.SwitchRow
 import io.openflux.desktop.ui.components.Tone
 import io.openflux.desktop.ui.components.appClickable
-import io.openflux.desktop.ui.shell.LocalShell
-import io.openflux.desktop.ui.shell.WidthClass
 import io.openflux.desktop.ui.theme.AppTheme
 import kotlinx.coroutines.launch
 import org.jetbrains.compose.resources.DrawableResource
@@ -102,7 +102,9 @@ object SettingsTab : Tab {
 
 @Composable
 private fun SettingsScreen(model: SettingsScreenModel) {
-    val compact = LocalShell.current.widthClass == WidthClass.Compact
+    // Categories beside the page when both fit, else one at a time.
+    BoxWithConstraints(Modifier.fillMaxSize()) {
+    val compact = maxWidth < 680.dp
     Row(Modifier.fillMaxSize()) {
         if (!compact || !model.mobileDetailOpen) {
             Column(
@@ -147,6 +149,7 @@ private fun SettingsScreen(model: SettingsScreenModel) {
                 scrollbars.Vertical(scroll, Modifier.align(Alignment.CenterEnd))
             }
         }
+    }
     }
 }
 
@@ -213,7 +216,7 @@ private fun ConnectionSettings(model: SettingsScreenModel) {
             keyboardType = KeyboardType.Number,
             error = if (!valid) "Порт от 1024 до 65534" else null,
             helper = if (valid) "SOCKS5: 127.0.0.1:$parsed · HTTP-прокси: 127.0.0.1:${parsed!! + 1}" else null,
-            modifier = Modifier.width(260.dp),
+            modifier = Modifier.fillUpTo(260.dp),
         )
         Spacer(Modifier.height(AppTheme.spacing.s))
         Text(
@@ -314,7 +317,7 @@ private fun CoreSettings(model: SettingsScreenModel) {
     AppCard {
         SectionLabel("Файл ядра")
         Spacer(Modifier.height(AppTheme.spacing.s))
-        Segmented(CoreSource.entries, settings.coreSource, { it.label }, { s -> model.update { it.copy(coreSource = s) } }, Modifier.width(360.dp))
+        Segmented(CoreSource.entries, settings.coreSource, { it.label }, { s -> model.update { it.copy(coreSource = s) } }, Modifier.fillUpTo(360.dp))
         Spacer(Modifier.height(AppTheme.spacing.m))
         if (settings.coreSource == CoreSource.Bundled) {
             KeyValueRow("Встроенное ядро", platform.coreVersion)
@@ -361,7 +364,7 @@ private fun InterfaceSettings(model: SettingsScreenModel) {
     AppCard {
         SectionLabel("Тема")
         Spacer(Modifier.height(AppTheme.spacing.s))
-        Segmented(ThemeMode.entries, settings.theme, { it.label }, { t -> model.update { it.copy(theme = t) } }, Modifier.width(420.dp))
+        Segmented(ThemeMode.entries, settings.theme, { it.label }, { t -> model.update { it.copy(theme = t) } }, Modifier.fillUpTo(420.dp))
     }
     AppCard(padding = AppTheme.spacing.s) {
         SwitchRow(

@@ -5,7 +5,6 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.height
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.ErrorOutline
@@ -23,6 +22,8 @@ import io.openflux.desktop.ui.components.AppDialog
 import io.openflux.desktop.ui.components.Banner
 import io.openflux.desktop.ui.components.TextAction
 import io.openflux.desktop.ui.components.Tone
+import io.openflux.desktop.ui.components.fillUpTo
+import io.openflux.desktop.ui.components.windowSize
 import io.openflux.desktop.ui.theme.AppTheme
 
 /**
@@ -37,8 +38,11 @@ fun CaptchaDialog() {
     val page by connection.captchaPage.collectAsState()
     val browsers = LocalBrowserViews.current
     val current = prompt ?: return
+    // The check page gets what the window can spare, within reason.
+    val window = windowSize()
+    val pageHeight = (window.height - 330.dp).coerceIn(180.dp, 640.dp)
     AppDialog(
-        modifier = Modifier.width(760.dp),
+        modifier = Modifier.fillUpTo(if (window.width >= 1400.dp) 960.dp else 760.dp),
         title = if (current.remote) "Нода просит пройти проверку Яндекса" else "Яндекс просит пройти проверку",
         onDismiss = connection::dismissCaptcha,
         primary = if (current.busy) "Передаю…" else "Готово, проверка пройдена",
@@ -56,9 +60,14 @@ fun CaptchaDialog() {
             style = AppTheme.typography.body,
             color = AppTheme.colors.text,
         )
+        // The error first: the page below may take the rest of a short window.
+        if (current.error.isNotBlank()) {
+            Spacer(Modifier.height(AppTheme.spacing.m))
+            Banner(current.error, Tone.Danger, icon = Icons.Rounded.ErrorOutline)
+        }
         Spacer(Modifier.height(AppTheme.spacing.m))
         Box(
-            Modifier.fillMaxWidth().height(460.dp).clip(AppTheme.shapes.card)
+            Modifier.fillMaxWidth().height(pageHeight).clip(AppTheme.shapes.card)
                 .border(1.dp, AppTheme.colors.border, AppTheme.shapes.card),
             contentAlignment = Alignment.Center,
         ) {
@@ -68,9 +77,5 @@ fun CaptchaDialog() {
         }
         Spacer(Modifier.height(AppTheme.spacing.s))
         TextAction("Открыть страницу проверки заново", connection::openCaptcha, enabled = !current.busy)
-        if (current.error.isNotBlank()) {
-            Spacer(Modifier.height(AppTheme.spacing.s))
-            Banner(current.error, Tone.Danger, icon = Icons.Rounded.ErrorOutline)
-        }
     }
 }

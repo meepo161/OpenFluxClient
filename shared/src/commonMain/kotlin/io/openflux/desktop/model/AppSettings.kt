@@ -20,6 +20,13 @@ enum class CoreSource(val label: String) { Bundled("Встроенное ядр�
 @Serializable
 data class SavedSystemProxy(val enabled: Boolean, val server: String, val override: String)
 
+/**
+ * Where the main window was, in dp (the screen's own units on the desktop).
+ * [x], [y], [width] and [height] are the normal, not maximized, bounds.
+ */
+@Serializable
+data class WindowBounds(val x: Float, val y: Float, val width: Float, val height: Float, val maximized: Boolean = false)
+
 @Serializable
 data class AppSettings(
     val theme: ThemeMode = ThemeMode.System,
@@ -56,6 +63,8 @@ data class AppSettings(
     /** Set while OpenFlux has changed the Windows proxy; restored on exit or next start. */
     val savedSystemProxy: SavedSystemProxy? = null,
     val sidebarCollapsed: Boolean = false,
+    /** The main window's last size and place, restored on the next start. */
+    val window: WindowBounds? = null,
     /** Node wizard: trusted SSH host keys by "host:port". */
     val knownHostKeys: Map<String, String> = emptyMap(),
     /** Node wizard: servers used before, newest first. No passwords. */
