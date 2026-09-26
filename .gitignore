@@ -1,0 +1,9 @@
+.gradle/
+build/
+*/build/
+.kotlin/
+.idea/
+*.iml
+local.properties
+desktopApp/resources/*/openflux*
+!desktopApp/resources/**/.gitkeep
