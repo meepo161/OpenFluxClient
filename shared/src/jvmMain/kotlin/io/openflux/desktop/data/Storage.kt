@@ -1,6 +1,7 @@
 package io.openflux.desktop.data
 
 import io.openflux.desktop.model.AppSettings
+import io.openflux.desktop.model.migrated
 import io.openflux.desktop.model.Profile
 import io.openflux.desktop.service.ProfileRepository
 import io.openflux.desktop.service.SettingsRepository
@@ -91,7 +92,9 @@ class FileProfileRepository(dir: File = AppDirs.config) : ProfileRepository {
 
 class FileSettingsRepository(dir: File = AppDirs.config) : SettingsRepository {
     private val store = JsonFile(File(dir, "settings.json"), AppSettings.serializer())
-    private val state = MutableStateFlow(store.read() ?: AppSettings())
+    private val state = MutableStateFlow(
+        (store.read() ?: AppSettings()).let { loaded -> loaded.migrated().also { if (it != loaded) store.write(it) } },
+    )
     override val settings: StateFlow<AppSettings> = state.asStateFlow()
 
     @Synchronized

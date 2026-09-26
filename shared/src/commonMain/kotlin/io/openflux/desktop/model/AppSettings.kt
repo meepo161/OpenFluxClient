@@ -25,8 +25,14 @@ data class AppSettings(
     val theme: ThemeMode = ThemeMode.System,
     val mode: ConnectionMode = ConnectionMode.Client,
     val socksPort: Int = 1080,
-    /** Point Windows (browsers and most programs) at the SOCKS5 proxy while connected. */
-    val systemProxy: Boolean = false,
+    /** Point Windows (browsers and most programs) at the core's HTTP proxy while connected. */
+    val systemProxy: Boolean = true,
+    /**
+     * The system proxy used to be off by default, so a connected client did
+     * not carry the computer's traffic; set once [systemProxy] was turned on
+     * for settings saved before that. See [migrated].
+     */
+    val systemProxyDefaultOn: Boolean = false,
     val autoConnect: Boolean = false,
     val selectedProfileId: String? = null,
     val coreSource: CoreSource = CoreSource.Bundled,
@@ -49,3 +55,7 @@ data class AppSettings(
     /** Node wizard: servers used before, newest first. No passwords. */
     val knownServers: List<KnownServer> = emptyList(),
 )
+
+/** Settings from an older version, brought up to date once on load. */
+fun AppSettings.migrated(): AppSettings =
+    if (systemProxyDefaultOn) this else copy(systemProxy = true, systemProxyDefaultOn = true)
