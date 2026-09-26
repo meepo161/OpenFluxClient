@@ -15,6 +15,16 @@ import kotlinx.coroutines.withTimeout
 import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.serialization.json.JsonPrimitive
 import org.cef.CefApp
+import org.cef.CefSettings
+import org.cef.callback.CefCallback
+import org.cef.handler.CefDisplayHandlerAdapter
+import org.cef.handler.CefLifeSpanHandlerAdapter
+import org.cef.handler.CefLoadHandler
+import org.cef.handler.CefLoadHandlerAdapter
+import org.cef.handler.CefRequestHandler
+import org.cef.handler.CefRequestHandlerAdapter
+import org.cef.network.CefRequest
+import org.cef.security.CefSSLInfo
 import org.cef.browser.CefBrowser
 import org.cef.browser.CefFrame
 import org.cef.browser.CefMessageRouter
@@ -60,7 +70,11 @@ class KcefPage internal constructor(private val browser: KCEFBrowser) : BrowserP
         """.trimIndent()
         try {
             browser.executeJavaScript(script, browser.url, 0)
-            return withTimeout(timeoutMs) { result.await() }
+            return withTimeoutOrNull(timeoutMs) { result.await() }
+                ?: run {
+                    BrowserLog.problem("скрипт на ${BrowserLog.short(url)} не ответил за ${timeoutMs / 1000} с (загружается: $loading)")
+                    throw IllegalStateException("Страница не ответила")
+                }
         } finally {
             BuiltInBrowser.pending.remove(id)
         }
@@ -111,6 +125,7 @@ object BuiltInBrowser {
             view.browser = browser
             // Create it now, not when shown: scripts and cookies work before the page is on screen.
             browser.createImmediately()
+            BrowserLog.info("открываю ${BrowserLog.short(url)}" + if (upstream != null) " через прокси ноды $upstream" else " напрямую")
             KcefPage(browser)
         }
     }
@@ -163,7 +178,13 @@ object BuiltInBrowser {
         val port = proxy.start()
         val initialized = CompletableDeferred<Unit>()
         var last = ""
-        val step = { text: String -> if (text != last) { last = text; onStep(text) } }
+        val step = { text: String -> if (text != last) { last = text; BrowserLog.info(text); onStep(text) } }
+        val dir = installDir
+        BrowserLog.info(
+            "запуск: папка $dir, установлен ${File(dir, "install.lock").isFile}, пакет ${packageUrl()}, " +
+                "java ${System.getProperty("java.version")} (${System.getProperty("java.home")}), ${System.getProperty("os.name")} ${System.getProperty("os.arch")}",
+        )
+        runCatching { BrowserLog.cefLogFile.delete() }
         var error: Throwable? = null
         var restart = false
         withContext(Dispatchers.IO) {
@@ -193,22 +214,32 @@ object BuiltInBrowser {
                         // paths make KCEF use the downloaded runtime instead.
                         resourcesDirPath = null
                         localesDirPath = null
-                        browserSubProcessPath = null
+                        browserSubProcessPath = helper(dir)
+                        logFile = BrowserLog.cefLogFile.absolutePath
+                        logSeverity = dev.datlag.kcef.KCEFBuilder.Settings.LogSeverity.Info
                     }
                     // Our own list, not JCEF's defaults (which pin the scale factor to 1 and
                     // blur HiDPI screens). No GPU: a sign-in page does not need it, and a
                     // bad driver would take the browser down.
-                    args(
+                    val switches = arrayOf(
                         "--disable-features=SpareRendererForSitePerProcess",
                         "--disable-gpu",
                         "--proxy-server=http://127.0.0.1:$port",
                         "--proxy-bypass-list=<-loopback>",
                     )
+                    args(*switches)
+                    // KCEF hands args() only to CefApp.startup; Chromium reads its
+                    // switches from the app handler, which KCEF builds with none. Without
+                    // this the pages went through the system proxy, with the GPU on.
+                    appHandler(KCEF.AppHandler(switches))
+                    BrowserLog.info("ключи Chromium: ${switches.joinToString(" ")}")
                 },
-                onError = { error = it },
-                onRestartRequired = { restart = true },
+                onError = { error = it; BrowserLog.problem("ошибка запуска: $it") },
+                onRestartRequired = { restart = true; BrowserLog.problem("KCEF просит перезапуск") },
             )
         }
+        BrowserLog.info("файлы: " + listOf("jcef_helper.exe", "jcef_helper", "libcef.dll", "libcef.so", "jcef.dll", "icudtl.dat", "resources.pak", "locales")
+            .filter { File(dir, it).exists() }.joinToString())
         if (restart) throw IllegalStateException("Встроенный браузер скачан: перезапустите OpenFlux и повторите")
         error?.let { throw IllegalStateException("Встроенный браузер не запустился: ${it.message ?: it::class.simpleName}") }
         withTimeoutOrNull(START_TIMEOUT_MS) { initialized.await() }
@@ -233,8 +264,58 @@ object BuiltInBrowser {
             }
         }, true)
         created.addMessageRouter(router)
+        watch(created)
+        BrowserLog.info("браузер готов: ${runCatching { CefApp.getInstance().version?.toString()?.replace(Regex("\\s+"), " ") }.getOrNull() ?: "?"}")
         return created
     }
+
+    /** Page events for [BrowserLog]: a white page is a load error or a dead renderer. */
+    private fun watch(client: KCEFClient) {
+        client.addLoadHandler(object : CefLoadHandlerAdapter() {
+            override fun onLoadStart(browser: CefBrowser?, frame: CefFrame?, type: CefRequest.TransitionType?) {
+                if (frame?.isMain == true) BrowserLog.info("страница ${browser?.identifier}: загружаю ${BrowserLog.short(frame.url)}")
+            }
+
+            override fun onLoadEnd(browser: CefBrowser?, frame: CefFrame?, httpStatusCode: Int) {
+                if (frame?.isMain == true) BrowserLog.info("страница ${browser?.identifier}: загружена, HTTP $httpStatusCode, ${BrowserLog.short(frame.url)}")
+            }
+
+            override fun onLoadError(browser: CefBrowser?, frame: CefFrame?, errorCode: CefLoadHandler.ErrorCode?, errorText: String?, failedUrl: String?) {
+                BrowserLog.problem("страница ${browser?.identifier}: ошибка загрузки $errorCode $errorText, ${BrowserLog.short(failedUrl)}")
+            }
+        })
+        client.addDisplayHandler(object : CefDisplayHandlerAdapter() {
+            override fun onAddressChange(browser: CefBrowser?, frame: CefFrame?, url: String?) {
+                if (frame?.isMain == true) BrowserLog.info("страница ${browser?.identifier}: адрес ${BrowserLog.short(url)}")
+            }
+
+            override fun onConsoleMessage(browser: CefBrowser?, level: CefSettings.LogSeverity?, message: String?, source: String?, line: Int): Boolean {
+                if (level != null && level >= CefSettings.LogSeverity.LOGSEVERITY_WARNING) {
+                    BrowserLog.problem("страница ${browser?.identifier}: консоль: ${message.orEmpty().take(300)} (${BrowserLog.short(source)}:$line)")
+                }
+                return false
+            }
+        })
+        client.addRequestHandler(object : CefRequestHandlerAdapter() {
+            override fun onRenderProcessTerminated(browser: CefBrowser?, status: CefRequestHandler.TerminationStatus?) {
+                BrowserLog.problem("страница ${browser?.identifier}: процесс отрисовки завершился: $status")
+            }
+
+            override fun onCertificateError(browser: CefBrowser?, cert_error: CefLoadHandler.ErrorCode?, request_url: String?, sslInfo: CefSSLInfo?, callback: CefCallback?): Boolean {
+                BrowserLog.problem("страница ${browser?.identifier}: ошибка сертификата $cert_error, ${BrowserLog.short(request_url)}")
+                return false
+            }
+        })
+        client.addLifeSpanHandler(object : CefLifeSpanHandlerAdapter() {
+            override fun onAfterCreated(browser: CefBrowser?) {
+                BrowserLog.info("страница ${browser?.identifier}: создана")
+            }
+        })
+    }
+
+    /** jcef_helper next to libcef; on Windows with its .exe, which KCEF leaves out. */
+    private fun helper(dir: File): String? =
+        listOf("jcef_helper.exe", "jcef_helper").map { File(dir, it) }.firstOrNull(File::isFile)?.absolutePath
 
     private const val START_TIMEOUT_MS = 60_000L
     const val YANDEX_USER_AGENT = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:153.0) Gecko/20100101 Firefox/153.0"

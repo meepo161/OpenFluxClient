@@ -38,6 +38,7 @@ internal class OsrView : JComponent(), MouseListener, MouseMotionListener, KeyLi
     @Volatile var browser: CefBrowser? = null
 
     private val lock = Any()
+    @Volatile private var frames = 0
     private var frame: BufferedImage? = null
     private var popup: BufferedImage? = null
     private var popupRect: Rectangle? = null
@@ -55,6 +56,7 @@ internal class OsrView : JComponent(), MouseListener, MouseMotionListener, KeyLi
         addFocusListener(this)
         addComponentListener(object : ComponentAdapter() {
             override fun componentResized(e: ComponentEvent) {
+                BrowserLog.info("страница ${browser?.identifier}: область ${width}x$height, масштаб $scale")
                 browser?.wasResized(width.coerceAtLeast(1), height.coerceAtLeast(1))
             }
         })
@@ -91,6 +93,7 @@ internal class OsrView : JComponent(), MouseListener, MouseMotionListener, KeyLi
 
         override fun onPaint(browser: CefBrowser?, popup: Boolean, dirtyRects: Array<out Rectangle>?, buffer: ByteBuffer, width: Int, height: Int) {
             if (width <= 0 || height <= 0) return
+            if (frames++ == 0) BrowserLog.info("страница ${browser?.identifier}: первый кадр ${width}x$height")
             synchronized(lock) {
                 val current = if (popup) this@OsrView.popup else frame
                 val image = current?.takeIf { it.width == width && it.height == height }
