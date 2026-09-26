@@ -36,12 +36,13 @@ compose.desktop {
         }
 
         nativeDistributions {
-            targetFormats(TargetFormat.Msi, TargetFormat.Exe, TargetFormat.Dmg)
+            targetFormats(TargetFormat.Msi, TargetFormat.Exe, TargetFormat.Dmg, TargetFormat.Deb)
             packageName = "OpenFlux"
             packageVersion = appVersion
             description = "OpenFlux desktop client"
             vendor = "meepo161"
-            // Core binaries shipped next to the app (see core/README.md).
+            // The core (and wintun.dll on Windows) in resources/<windows|macos|linux>,
+            // put there by scripts/build-core.sh or the release workflow.
             appResourcesRootDir.set(project.layout.projectDirectory.dir("resources"))
             modules("java.instrument", "java.management", "java.net.http", "jdk.crypto.ec", "jdk.unsupported")
 
@@ -50,6 +51,17 @@ compose.desktop {
                 upgradeUuid = "3F0C7B52-9A2E-4C1B-8E77-5D2A6B1E9C40"
                 shortcut = true
                 perUserInstall = true
+            }
+            macOS {
+                bundleID = "io.openflux.desktop"
+                dockName = "OpenFlux"
+                appCategory = "public.app-category.utilities"
+            }
+            linux {
+                packageName = "openflux"
+                menuGroup = "Network"
+                appCategory = "Network"
+                shortcut = true
             }
         }
     }

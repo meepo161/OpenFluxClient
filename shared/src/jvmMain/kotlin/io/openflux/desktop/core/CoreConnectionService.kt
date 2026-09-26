@@ -509,23 +509,29 @@ class CoreConnectionService(
 
 /** Finds the core binary: the user's file or the one shipped with the app. */
 class CoreBinary {
-    private val fileName: String = run {
-        val os = System.getProperty("os.name").lowercase()
-        val arch = when (System.getProperty("os.arch").lowercase()) {
-            "aarch64", "arm64" -> "arm64"
-            else -> "amd64"
-        }
-        when {
-            os.contains("win") -> "openflux-windows-$arch.exe"
-            os.contains("mac") -> "openflux-darwin-$arch"
-            else -> "openflux-linux-$arch"
-        }
+    private val os = System.getProperty("os.name").lowercase()
+    private val arch = when (System.getProperty("os.arch").lowercase()) {
+        "aarch64", "arm64" -> "arm64"
+        else -> "amd64"
+    }
+
+    private val fileName: String = when {
+        os.contains("win") -> "openflux-windows-$arch.exe"
+        os.contains("mac") -> "openflux-darwin-$arch"
+        else -> "openflux-linux-$arch"
+    }
+
+    /** The folder under desktopApp/resources the build packs for this OS (Compose's appResources layout). */
+    private val resourceDir: String = when {
+        os.contains("win") -> "windows"
+        os.contains("mac") -> "macos"
+        else -> "linux"
     }
 
     private fun bundledCandidates(): List<File> = listOfNotNull(
         System.getProperty("compose.application.resources.dir")?.let { File(it, fileName) },
-        File(System.getProperty("user.dir"), "resources/windows/$fileName"),
-        File(System.getProperty("user.dir"), "desktopApp/resources/windows/$fileName"),
+        File(System.getProperty("user.dir"), "resources/$resourceDir/$fileName"),
+        File(System.getProperty("user.dir"), "desktopApp/resources/$resourceDir/$fileName"),
     )
 
     fun bundled(): File? = bundledCandidates().firstOrNull { it.isFile }
@@ -533,6 +539,22 @@ class CoreBinary {
     fun resolve(settings: AppSettings): File? = when (settings.coreSource) {
         CoreSource.Custom -> File(settings.customCorePath.trim()).takeIf { settings.customCorePath.isNotBlank() && it.isFile }
         CoreSource.Bundled -> bundled()
+    }?.let(::runnable)
+
+    /**
+     * On Linux and macOS the core must be executable. A package may lose the
+     * bit, and an installed app's folder is not ours to change: then run a
+     * copy from the app's data folder.
+     */
+    private fun runnable(file: File): File {
+        if (os.contains("win") || file.canExecute()) return file
+        if (runCatching { file.setExecutable(true) }.getOrDefault(false) && file.canExecute()) return file
+        val copy = File(AppDirs.runtime, file.name)
+        if (!copy.isFile || copy.length() != file.length() || copy.lastModified() < file.lastModified()) {
+            file.copyTo(copy, overwrite = true)
+        }
+        copy.setExecutable(true, true)
+        return copy
     }
 
     /** The version file shipped next to the bundled core. */
