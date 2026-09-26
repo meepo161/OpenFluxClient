@@ -5,6 +5,7 @@ import io.openflux.desktop.data.restrictToOwner
 import io.openflux.desktop.model.AppSettings
 import io.openflux.desktop.model.CaptchaPrompt
 import io.openflux.desktop.ui.BrowserPage
+import io.openflux.desktop.web.BrowserLog
 import io.openflux.desktop.model.ConnectionMode
 import io.openflux.desktop.model.ConnectionState
 import io.openflux.desktop.model.CoreConfig
@@ -103,6 +104,7 @@ class CoreConnectionService(
             ?.forEach { runCatching { it.delete() } }
         // A crash while the system proxy pointed at OpenFlux leaves Windows
         // without Internet; put the saved values back on the next start.
+        BrowserLog.listener = { text, problem -> log(if (problem) LogLevel.Warning else LogLevel.Info, text) }
         settings.settings.value.savedSystemProxy?.let { saved ->
             if (isWindows) runCatching { WindowsSystemProxy.restore(saved) }
             settings.update { it.copy(savedSystemProxy = null) }

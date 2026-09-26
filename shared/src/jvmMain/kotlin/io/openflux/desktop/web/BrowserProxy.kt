@@ -71,6 +71,7 @@ class BrowserProxy {
             if (parts.size != 3) return
             val (method, target, version) = parts
             val via = upstream
+            BrowserLog.info("прокси: $method ${BrowserLog.short(target)} ${if (via != null) "через ноду" else "напрямую"}")
             if (via != null) {
                 // The node's proxy speaks the same protocol: pass the request on as is.
                 remote = connect(via).also { open += it }
@@ -97,8 +98,9 @@ class BrowserProxy {
             copy(input, upstreamSocket.getOutputStream())
             runCatching { upstreamSocket.shutdownOutput() }
             pump.join()
-        } catch (_: Exception) {
+        } catch (e: Exception) {
             // The browser retries or shows its own error page.
+            if (!client.isClosed) BrowserLog.problem("прокси: соединение не удалось: ${e.javaClass.simpleName} ${e.message.orEmpty().take(200)}")
         } finally {
             remote?.let { open -= it; runCatching { it.close() } }
             open -= client
