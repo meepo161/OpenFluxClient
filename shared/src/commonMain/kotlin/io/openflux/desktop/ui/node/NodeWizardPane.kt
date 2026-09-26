@@ -60,6 +60,7 @@ import io.openflux.desktop.ui.components.SectionLabel
 import io.openflux.desktop.ui.components.Segmented
 import io.openflux.desktop.ui.components.TextAction
 import io.openflux.desktop.ui.components.Tone
+import io.openflux.desktop.ui.components.windowSize
 import io.openflux.desktop.ui.theme.AppTheme
 
 /**
@@ -294,7 +295,7 @@ private fun ColumnScope.DocumentStep(model: NodeWizardModel) {
     if (shown != null) {
         Spacer(Modifier.height(AppTheme.spacing.m))
         Box(
-            Modifier.fillMaxWidth().height(560.dp).clip(AppTheme.shapes.card)
+            Modifier.fillMaxWidth().height((windowSize().height - 200.dp).coerceIn(360.dp, 760.dp)).clip(AppTheme.shapes.card)
                 .border(1.dp, AppTheme.colors.border, AppTheme.shapes.card),
         ) {
             LocalBrowserViews.current.Page(shown, Modifier.fillMaxSize())

@@ -10,6 +10,9 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
+import io.openflux.desktop.ui.components.ButtonRow
+import androidx.compose.ui.unit.Dp
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -112,17 +115,20 @@ private fun HomeScreen(model: HomeScreenModel) {
     val selected = model.selectedProfile(profiles, settings.selectedProfileId)
     val shell = LocalShell.current
 
-    Column(Modifier.fillMaxSize().padding(horizontal = AppTheme.spacing.page, vertical = AppTheme.spacing.xl)) {
+    // Very wide windows keep the page to a readable width, centred.
+    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.TopCenter) {
+    Column(Modifier.fillMaxHeight().widthIn(max = 1680.dp).fillMaxWidth().padding(horizontal = AppTheme.spacing.page, vertical = AppTheme.spacing.xl)) {
         PageHeader("Главная", "Состояние подключения и трафик")
         Spacer(Modifier.height(AppTheme.spacing.xl))
         if (profiles.isEmpty()) {
-            Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+            val scroll = rememberScrollState()
+            Box(Modifier.fillMaxSize().verticalScroll(scroll), contentAlignment = Alignment.Center) {
                 EmptyState(
                     title = "Добавьте первый профиль",
                     message = "Профиль — это нода и способ до неё добраться. Вставьте ссылку openflux:// от владельца ноды или QR-код, либо создайте профиль вручную.",
                     resource = AppIcons.Public,
                 ) {
-                    Row(horizontalArrangement = Arrangement.spacedBy(AppTheme.spacing.s)) {
+                    ButtonRow(alignment = Alignment.CenterHorizontally) {
                         AppButton("Импорт ссылки или QR", {
                             shell.importRequested = true
                             shell.open(ProfilesTab)
@@ -134,18 +140,29 @@ private fun HomeScreen(model: HomeScreenModel) {
                     }
                 }
             }
-            return
+            return@Column
         }
         BoxWithConstraints(Modifier.fillMaxSize()) {
-            val wide = maxWidth >= 820.dp
+            val wide = maxWidth >= 760.dp
+            val panelSideBySide = maxWidth >= 560.dp
+            // The ring grows with a tall window; below its standard size the speed line would not fit.
+            val ring = (maxHeight * 0.36f).coerceIn(AppTheme.dimens.connectRingOuter, 264.dp)
             val scroll = rememberScrollState()
             val scrollbars = LocalScrollbars.current
             if (wide) {
+                val panelWidth = (maxWidth * 0.34f).coerceIn(320.dp, 420.dp)
+                val twoColumns = maxWidth - panelWidth - AppTheme.spacing.xl >= 900.dp
+                val panelScroll = rememberScrollState()
                 Row(Modifier.fillMaxSize(), horizontalArrangement = Arrangement.spacedBy(AppTheme.spacing.xl)) {
-                    ControlPanel(model, profiles, selected, state, settings.mode, Modifier.width(360.dp))
+                    Box(Modifier.width(panelWidth).fillMaxHeight()) {
+                        Column(Modifier.fillMaxSize().verticalScroll(panelScroll)) {
+                            ControlPanel(model, profiles, selected, state, settings.mode, ring, Modifier.fillMaxWidth())
+                        }
+                        scrollbars.Vertical(panelScroll, Modifier.align(Alignment.CenterEnd))
+                    }
                     Box(Modifier.weight(1f)) {
                         Column(Modifier.fillMaxSize().verticalScroll(scroll).padding(end = AppTheme.spacing.m)) {
-                            DetailsColumn(model, selected, state)
+                            DetailsColumn(model, selected, state, twoColumns)
                         }
                         scrollbars.Vertical(scroll, Modifier.align(Alignment.CenterEnd))
                     }
@@ -153,14 +170,15 @@ private fun HomeScreen(model: HomeScreenModel) {
             } else {
                 Box(Modifier.fillMaxSize()) {
                     Column(Modifier.fillMaxSize().verticalScroll(scroll).padding(end = AppTheme.spacing.m)) {
-                        ControlPanel(model, profiles, selected, state, settings.mode, Modifier.fillMaxWidth())
+                        ControlPanel(model, profiles, selected, state, settings.mode, ring, Modifier.fillMaxWidth(), horizontal = panelSideBySide)
                         Spacer(Modifier.height(AppTheme.spacing.l))
-                        DetailsColumn(model, selected, state)
+                        DetailsColumn(model, selected, state, twoColumns = false)
                     }
                     scrollbars.Vertical(scroll, Modifier.align(Alignment.CenterEnd))
                 }
             }
         }
+    }
     }
 }
 
@@ -172,7 +190,9 @@ private fun ControlPanel(
     selected: Profile?,
     state: ConnectionState,
     mode: ConnectionMode,
+    ringSize: Dp,
     modifier: Modifier,
+    horizontal: Boolean = false,
 ) {
     val look = state.look()
     val platform = LocalAppContainer.current.platform
@@ -193,17 +213,18 @@ private fun ControlPanel(
     val speed = if (traffic.live && state is ConnectionState.Connected) "↓ ${Format.speed(traffic.downBytesPerSec)}  ↑ ${Format.speed(traffic.upBytesPerSec)}" else ""
     val canToggle = state !is ConnectionState.Disconnecting && (state.isActive || selected != null)
 
-    AppCard(modifier, padding = AppTheme.spacing.xl) {
-        Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
-            ConnectButton(
-                title = look.title,
-                detail = detail,
-                extra = speed,
-                tone = look.tone,
-                enabled = canToggle,
-                onClick = { model.toggle(selected) },
-            )
-        }
+    val button = @Composable {
+        ConnectButton(
+            title = look.title,
+            detail = detail,
+            extra = speed,
+            tone = look.tone,
+            enabled = canToggle,
+            onClick = { model.toggle(selected) },
+            ringSize = ringSize,
+        )
+    }
+    val hint = @Composable { hintModifier: Modifier ->
         Text(
             when {
                 state.isActive -> "Нажмите, чтобы отключиться · Ctrl+Enter"
@@ -212,9 +233,10 @@ private fun ControlPanel(
             style = AppTheme.typography.caption,
             color = AppTheme.colors.textHint,
             textAlign = TextAlign.Center,
-            modifier = Modifier.fillMaxWidth(),
+            modifier = hintModifier,
         )
-        Spacer(Modifier.height(AppTheme.spacing.xl))
+    }
+    val choices = @Composable {
         SectionLabel("Профиль")
         Spacer(Modifier.height(AppTheme.spacing.s))
         ProfilePicker(profiles, selected, onSelect = model::select)
@@ -235,6 +257,25 @@ private fun ControlPanel(
             style = AppTheme.typography.caption,
             color = AppTheme.colors.textSecondary,
         )
+    }
+
+    AppCard(modifier, padding = AppTheme.spacing.xl) {
+        if (horizontal) {
+            // A wide, short card: the button on the left, what it connects on the right.
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Column(Modifier.width(ringSize), horizontalAlignment = Alignment.CenterHorizontally) {
+                    button()
+                    hint(Modifier.fillMaxWidth())
+                }
+                Spacer(Modifier.width(AppTheme.spacing.xxl))
+                Column(Modifier.weight(1f)) { choices() }
+            }
+        } else {
+            Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) { button() }
+            hint(Modifier.fillMaxWidth())
+            Spacer(Modifier.height(AppTheme.spacing.xl))
+            choices()
+        }
     }
 }
 
@@ -268,7 +309,7 @@ private fun ProfilePicker(profiles: List<Profile>, selected: Profile?, onSelect:
 }
 
 @Composable
-private fun DetailsColumn(model: HomeScreenModel, selected: Profile?, state: ConnectionState) {
+private fun DetailsColumn(model: HomeScreenModel, selected: Profile?, state: ConnectionState, twoColumns: Boolean) {
     val toaster = LocalToaster.current
     val shell = LocalShell.current
     val traffic by model.connection.traffic.collectAsState()
@@ -299,16 +340,23 @@ private fun DetailsColumn(model: HomeScreenModel, selected: Profile?, state: Con
             Banner("Связь с нодой потеряна. Ядро переподключается само, трафик пойдёт, как только канал поднимется.", Tone.Warning)
         }
 
+        val main: @Composable () -> Unit = {
         AppCard {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text("Трафик", style = AppTheme.typography.sectionTitle, color = AppTheme.colors.text, modifier = Modifier.weight(1f))
                 if (traffic.activeTransport.isNotEmpty()) StatusBadge("через ${traffic.activeTransport}", Tone.Accent)
             }
             Spacer(Modifier.height(AppTheme.spacing.l))
-            Row(horizontalArrangement = Arrangement.spacedBy(AppTheme.spacing.l)) {
-                Metric("Загрузка", Format.speed(traffic.downBytesPerSec), Icons.Rounded.ArrowDownward, Modifier.weight(1f))
-                Metric("Отдача", Format.speed(traffic.upBytesPerSec), Icons.Rounded.ArrowUpward, Modifier.weight(1f))
-                Metric("За сессию", Format.bytes(traffic.totalDown + traffic.totalUp), null, Modifier.weight(1f))
+            // Three in a row when they fit, else two and the total below.
+            BoxWithConstraints(Modifier.fillMaxWidth()) {
+                val perRow = if (maxWidth >= 360.dp) 3 else 2
+                val gap = AppTheme.spacing.l
+                val cell = (maxWidth - gap * (perRow - 1)) / perRow
+                ButtonRow(Modifier.fillMaxWidth()) {
+                    Metric("Загрузка", Format.speed(traffic.downBytesPerSec), Icons.Rounded.ArrowDownward, Modifier.width(cell))
+                    Metric("Отдача", Format.speed(traffic.upBytesPerSec), Icons.Rounded.ArrowUpward, Modifier.width(cell))
+                    Metric("За сессию", Format.bytes(traffic.totalDown + traffic.totalUp), null, Modifier.width(cell))
+                }
             }
             if (!traffic.live && state is ConnectionState.Connected) {
                 Spacer(Modifier.height(AppTheme.spacing.s))
@@ -354,6 +402,8 @@ private fun DetailsColumn(model: HomeScreenModel, selected: Profile?, state: Con
             }
         }
 
+        }
+        val extra: @Composable () -> Unit = {
         if (!exitMode && container.platform.fullTunnelSupported) {
             AppCard(padding = AppTheme.spacing.s) {
                 SwitchRow(
@@ -400,24 +450,50 @@ private fun DetailsColumn(model: HomeScreenModel, selected: Profile?, state: Con
                         color = AppTheme.colors.textSecondary,
                     )
                 } else {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        QrCode(remember(link) { model.qr(link) }, 200.dp)
-                        Spacer(Modifier.width(AppTheme.spacing.l))
-                        Column(Modifier.widthIn(max = 320.dp)) {
-                            Text(
-                                "Отсканируйте в OpenFlux на телефоне или вставьте ссылку в OpenFlux на компьютере. В коде ключ шифрования: показывайте только своим.",
-                                style = AppTheme.typography.body,
-                                color = AppTheme.colors.textSecondary,
-                            )
-                            Spacer(Modifier.height(AppTheme.spacing.m))
-                            AppButton("Копировать ссылку", {
-                                model.copy(link)
-                                toaster.show("Ссылка скопирована")
-                            }, style = ButtonStyle.Secondary, leading = Icons.Rounded.ContentCopy)
+                    val matrix = remember(link) { model.qr(link) }
+                    val hint = @Composable {
+                        Text(
+                            "Отсканируйте в OpenFlux на телефоне или вставьте ссылку в OpenFlux на компьютере. В коде ключ шифрования: показывайте только своим.",
+                            style = AppTheme.typography.body,
+                            color = AppTheme.colors.textSecondary,
+                        )
+                        Spacer(Modifier.height(AppTheme.spacing.m))
+                        AppButton("Копировать ссылку", {
+                            model.copy(link)
+                            toaster.show("Ссылка скопирована")
+                        }, style = ButtonStyle.Secondary, leading = Icons.Rounded.ContentCopy)
+                    }
+                    // The code beside its hint when there is room, above it when not.
+                    BoxWithConstraints(Modifier.fillMaxWidth()) {
+                        val qr = minOf(maxWidth, if (maxWidth >= 720.dp) 240.dp else 200.dp)
+                        if (maxWidth >= 460.dp) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                QrCode(matrix, qr)
+                                Spacer(Modifier.width(AppTheme.spacing.l))
+                                Column(Modifier.weight(1f).widthIn(max = 360.dp)) { hint() }
+                            }
+                        } else {
+                            Column {
+                                QrCode(matrix, qr)
+                                Spacer(Modifier.height(AppTheme.spacing.l))
+                                hint()
+                            }
                         }
                     }
                 }
             }
+        }
+        }
+
+        val hasExtra = exitMode || container.platform.fullTunnelSupported || container.platform.systemProxySupported
+        if (twoColumns && hasExtra) {
+            Row(horizontalArrangement = Arrangement.spacedBy(AppTheme.spacing.l)) {
+                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(AppTheme.spacing.l)) { main() }
+                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(AppTheme.spacing.l)) { extra() }
+            }
+        } else {
+            main()
+            extra()
         }
     }
 }
@@ -433,6 +509,6 @@ private fun Metric(label: String, value: String, icon: ImageVector?, modifier: M
             Text(label, style = AppTheme.typography.bodySmall, color = AppTheme.colors.textSecondary)
         }
         Spacer(Modifier.height(4.dp))
-        Text(value, style = AppTheme.typography.metric, color = AppTheme.colors.text, maxLines = 1)
+        Text(value, style = AppTheme.typography.metric, color = AppTheme.colors.text, maxLines = 1, overflow = TextOverflow.Ellipsis)
     }
 }

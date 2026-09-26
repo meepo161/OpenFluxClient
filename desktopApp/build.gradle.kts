@@ -21,6 +21,7 @@ dependencies {
     if (findProperty("windowsPackage") == "true") implementation(compose.desktop.windows_x64)
     implementation(libs.kotlinx.coroutines.swing)
     implementation(libs.compose.components.resources)
+    testImplementation(libs.kotlin.testJunit)
 }
 
 compose.desktop {

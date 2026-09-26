@@ -13,6 +13,8 @@ import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.ui.text.style.TextOverflow
+import io.openflux.desktop.ui.components.fillUpTo
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -98,6 +100,8 @@ fun ProfileEditor(model: ProfilesScreenModel, state: EditorState, onBack: (() ->
                     if (state.isNew) "Новый профиль" else "Изменить профиль",
                     style = AppTheme.typography.pageTitle,
                     color = AppTheme.colors.text,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
                     modifier = Modifier.weight(1f),
                 )
                 AppButton("Отмена", model::cancelEdit, style = ButtonStyle.Secondary)
@@ -134,7 +138,7 @@ fun ProfileEditor(model: ProfilesScreenModel, state: EditorState, onBack: (() ->
                                 it.copy(session = session, transport = transport)
                             }
                         },
-                        modifier = Modifier.width(320.dp),
+                        modifier = Modifier.fillUpTo(320.dp),
                     )
                     Spacer(Modifier.height(AppTheme.spacing.xs))
                     Text(
@@ -161,7 +165,7 @@ fun ProfileEditor(model: ProfilesScreenModel, state: EditorState, onBack: (() ->
                         Spacer(Modifier.height(AppTheme.spacing.l))
                         Text("Кодек", style = AppTheme.typography.bodySmall, color = AppTheme.colors.textSecondary)
                         Spacer(Modifier.height(6.dp))
-                        Segmented(Codec.entries, draft.codec, { it.label }, { c -> model.updateDraft { it.copy(codec = c) } }, Modifier.width(360.dp))
+                        Segmented(Codec.entries, draft.codec, { it.label }, { c -> model.updateDraft { it.copy(codec = c) } }, Modifier.fillUpTo(360.dp))
                     }
                 }
 
@@ -260,7 +264,7 @@ private fun TransportDropdown(selected: TransportType, session: Boolean, onSelec
     Box {
         Row(
             Modifier
-                .widthIn(min = 320.dp)
+                .fillUpTo(480.dp)
                 .height(AppTheme.dimens.fieldHeight)
                 .clip(AppTheme.shapes.field)
                 .background(AppTheme.colors.surface)

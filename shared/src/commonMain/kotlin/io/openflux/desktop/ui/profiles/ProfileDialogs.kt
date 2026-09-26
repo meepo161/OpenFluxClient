@@ -31,6 +31,7 @@ import io.openflux.desktop.ui.components.AppCard
 import io.openflux.desktop.ui.components.AppDialog
 import io.openflux.desktop.ui.components.AppTextField
 import io.openflux.desktop.ui.components.Banner
+import io.openflux.desktop.ui.components.ButtonRow
 import io.openflux.desktop.ui.components.ButtonStyle
 import io.openflux.desktop.ui.components.KeyValueRow
 import io.openflux.desktop.ui.components.LocalToaster
@@ -82,7 +83,7 @@ fun ImportDialog(model: ProfilesScreenModel) {
             error = (preview as? ImportPreview.Invalid)?.message,
         )
         Spacer(Modifier.height(AppTheme.spacing.m))
-        Row(horizontalArrangement = Arrangement.spacedBy(AppTheme.spacing.s)) {
+        ButtonRow {
             AppButton("Из буфера", {
                 text = model.clipboardText(); source = ProfileSource.Link; notice = null
             }, style = ButtonStyle.Secondary, leading = Icons.Rounded.ContentPaste)

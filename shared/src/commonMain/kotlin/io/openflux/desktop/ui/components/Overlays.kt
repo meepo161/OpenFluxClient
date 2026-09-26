@@ -3,6 +3,8 @@ package io.openflux.desktop.ui.components
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.hoverable
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsHoveredAsState
 import androidx.compose.foundation.layout.Arrangement
@@ -197,10 +199,13 @@ fun AppDialog(
     content: @Composable ColumnScope.() -> Unit,
 ) {
     val focus = remember { FocusRequester() }
+    val scroll = rememberScrollState()
     Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) {
+        // A margin from the window's edges; a dialog taller than the window scrolls its body.
+        Box(Modifier.padding(AppTheme.spacing.xl), contentAlignment = Alignment.Center) {
         Column(
             modifier
-                .widthIn(min = 360.dp, max = AppTheme.dimens.dialogWidth)
+                .widthIn(min = 320.dp, max = AppTheme.dimens.dialogWidth)
                 .shadow(24.dp, AppTheme.shapes.dialog)
                 .clip(AppTheme.shapes.dialog)
                 .background(AppTheme.colors.surface)
@@ -218,14 +223,15 @@ fun AppDialog(
         ) {
             Text(title, style = AppTheme.typography.sectionTitle, color = AppTheme.colors.text)
             Spacer(Modifier.height(AppTheme.spacing.l))
-            content()
+            Column(Modifier.weight(1f, fill = false).verticalScroll(scroll)) { content() }
             if (primary != null || secondary != null) {
                 Spacer(Modifier.height(AppTheme.spacing.xl))
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(AppTheme.spacing.s, Alignment.End)) {
+                ButtonRow(Modifier.fillMaxWidth(), alignment = Alignment.End) {
                     if (secondary != null) AppButton(secondary, onDismiss, style = ButtonStyle.Secondary)
                     if (primary != null) AppButton(primary, onPrimary, style = primaryStyle, enabled = primaryEnabled)
                 }
             }
+        }
         }
     }
     LaunchedEffect(Unit) { runCatching { focus.requestFocus() } }

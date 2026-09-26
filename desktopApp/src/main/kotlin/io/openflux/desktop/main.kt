@@ -6,13 +6,11 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.unit.DpSize
-import androidx.compose.ui.unit.dp
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.window.Tray
 import androidx.compose.ui.window.Window
-import androidx.compose.ui.window.WindowPosition
+import androidx.compose.ui.window.WindowState
 import androidx.compose.ui.window.application
-import androidx.compose.ui.window.rememberWindowState
 import io.openflux.desktop.data.AppDirs
 import io.openflux.desktop.model.isActive
 import io.openflux.desktop.model.profile
@@ -29,6 +27,8 @@ import java.io.RandomAccessFile
 import java.nio.channels.FileLock
 import java.util.concurrent.atomic.AtomicBoolean
 import javax.swing.JOptionPane
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.collectLatest
 import kotlin.system.exitProcess
 
 /** Set by the build (-Dopenflux.version); "dev" when run some other way. */
@@ -72,7 +72,20 @@ fun main(args: Array<String>) {
             stop()
             exitApplication()
         }
-        val windowState = rememberWindowState(size = DpSize(1200.dp, 780.dp), position = WindowPosition.PlatformDefault)
+        val windowState = remember {
+            val initial = initialWindow(container.settings.settings.value.window)
+            WindowState(placement = initial.placement, position = initial.position, size = initial.size)
+        }
+        // Remember where the window is, for the next start; written once it settles.
+        LaunchedEffect(windowState) {
+            snapshotFlow { Triple(windowState.placement, windowState.size, windowState.position) }.collectLatest {
+                delay(700)
+                container.settings.update { s ->
+                    val bounds = windowState.boundsToSave(s.window)
+                    if (bounds == null || bounds == s.window) s else s.copy(window = bounds)
+                }
+            }
+        }
 
         LaunchedEffect(Unit) {
             if (settings.autoConnect) HomeTab.connectSelected(container)
@@ -103,7 +116,7 @@ fun main(args: Array<String>) {
             icon = icon,
             onPreviewKeyEvent = shortcuts::handle,
         ) {
-            LaunchedEffect(Unit) { window.minimumSize = Dimension(720, 520) }
+            LaunchedEffect(Unit) { window.minimumSize = Dimension(MIN_WINDOW.width.value.toInt(), MIN_WINDOW.height.value.toInt()) }
             OpenFluxApp(container, DesktopScrollbars, shortcuts, KcefBrowserViews)
         }
     }

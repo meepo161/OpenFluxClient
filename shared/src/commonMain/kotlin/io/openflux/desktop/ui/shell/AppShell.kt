@@ -57,12 +57,12 @@ import io.openflux.desktop.ui.settings.SettingsTab
 import io.openflux.desktop.ui.theme.AppTheme
 import io.openflux.desktop.ui.theme.OpenFluxTheme
 
-/** The width class the layout adapts to. */
+/** The window's width class; below [WidthClass.Medium] the sidebar shows icons only. */
 enum class WidthClass { Compact, Medium, Expanded }
 
 fun widthClassOf(width: Dp): WidthClass = when {
-    width < 900.dp -> WidthClass.Compact
-    width < 1280.dp -> WidthClass.Medium
+    width < 1000.dp -> WidthClass.Compact
+    width < 1440.dp -> WidthClass.Medium
     else -> WidthClass.Expanded
 }
 
