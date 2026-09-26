@@ -44,6 +44,11 @@ data class NewChannel(val id: String, val key: String) {
     override fun toString() = "NewChannel($id)"
 }
 
+/** The channel's Yandex document and the sign-in the node may open it with. */
+data class YandexDocument(val url: String, val cookieHeader: String) {
+    override fun toString() = "YandexDocument($url)"
+}
+
 /** A server the wizard has installed on before, to fill the form again. */
 @Serializable
 data class KnownServer(val host: String, val port: Int, val user: String)
@@ -67,6 +72,10 @@ object NodeDocuments {
 
     /** The document link without query or fragment, null if it is not a Yandex document. */
     fun clean(url: String): String? = url.trim().replace(Regex("[?#].*$"), "").takeIf(DOC_URL::matches)
+
+    /** Whether a Cookie header holds a Yandex login (the core's provision.CookieStore check). */
+    fun signedIn(cookieHeader: String): Boolean =
+        cookieHeader.split(';').any { it.trim().substringBefore('=') == "Session_id" && it.contains('=') }
 }
 
 object NodeServers {

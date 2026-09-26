@@ -26,6 +26,7 @@ kotlin {
         }
         jvmMain.dependencies {
             implementation(libs.zxing.core)
+            implementation(libs.kcef)
             implementation(libs.kotlinx.coroutines.swing)
         }
         jvmTest.dependencies {

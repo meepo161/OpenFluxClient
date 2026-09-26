@@ -26,6 +26,9 @@ import io.openflux.desktop.service.NodeWizardService
 import io.openflux.desktop.service.PlatformServices
 import io.openflux.desktop.service.ProfileRepository
 import io.openflux.desktop.service.SettingsRepository
+import io.openflux.desktop.model.NodeDocuments
+import io.openflux.desktop.model.YandexDocument
+import io.openflux.desktop.ui.BrowserPage
 import io.openflux.desktop.ui.node.NodeWizardModel
 import io.openflux.desktop.ui.node.WizardStep
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -155,7 +158,7 @@ class NodeWizardModelTest {
     }
 
     @Test
-    fun picksUpTheNewDocumentLinkFromTheClipboard() = runTest {
+    fun createdDocumentHandsTheSignInToTheNode() = runTest {
         val env = Env()
         val wizard = NodeWizardModel(env.container, this)
         env.settings.update { it.copy(knownHostKeys = mapOf("$serverIp:22" to "SHA256:new")) }
@@ -163,25 +166,36 @@ class NodeWizardModelTest {
         wizard.password = "p"
         wizard.connect()
         advanceUntilIdle()
-        assertEquals("openflux-of-test12", wizard.documentName)
-        // A link copied before, maybe another channel's document: not taken.
-        val old = "https://disk.yandex.ru/edit/d/OLDOLDOLDOLDOLDOLDOLD"
-        env.platform.clipboard = old
-        wizard.pickUpClipboard()
-        wizard.openYandexDisk()
-        assertEquals(listOf("https://disk.yandex.ru/client/disk"), env.platform.opened)
-        wizard.pickUpClipboard()
+        wizard.createDocument()
         advanceUntilIdle()
-        assertEquals(WizardStep.Document, wizard.step)
-        assertEquals("", wizard.documentInput)
-
-        env.platform.clipboard = "some text"
-        wizard.pickUpClipboard()
-        env.platform.clipboard = "$docUrl?source=share"
-        wizard.pickUpClipboard()
-        advanceUntilIdle()
+        assertEquals("openflux-of-test12", env.node.documentName)
         assertEquals(WizardStep.Plan, wizard.step)
         assertEquals(docUrl, wizard.documentUrl)
+        assertTrue(wizard.nodeSignedIn)
+        assertEquals(listOf(true), env.node.plannedWithCookies)
+        wizard.install()
+        advanceUntilIdle()
+        assertEquals("Session_id=abc; yandexuid=1", env.node.applied.last())
+        assertFalse(wizard.nodeSignedIn)
+    }
+
+    @Test
+    fun anotherDocumentDropsTheSignIn() = runTest {
+        val env = Env()
+        val wizard = NodeWizardModel(env.container, this)
+        env.settings.update { it.copy(knownHostKeys = mapOf("$serverIp:22" to "SHA256:new")) }
+        wizard.host = serverIp
+        wizard.password = "p"
+        wizard.connect()
+        advanceUntilIdle()
+        wizard.createDocument()
+        advanceUntilIdle()
+        wizard.back()
+        wizard.documentInput = "https://disk.yandex.ru/edit/d/ANOTHERANOTHERANOTHER"
+        wizard.checkDocument()
+        advanceUntilIdle()
+        assertFalse(wizard.nodeSignedIn)
+        assertEquals(listOf(true, false), env.node.plannedWithCookies)
     }
 
     @Test
@@ -194,6 +208,8 @@ class NodeWizardModelTest {
         assertNull(NodeServers.port("0"))
         assertNull(NodeServers.port("70000"))
         assertEquals(2222, NodeServers.port(" 2222 "))
+        assertTrue(NodeDocuments.signedIn("yandexuid=1; Session_id=abc; L=2"))
+        assertFalse(NodeDocuments.signedIn("yandexuid=1; sessionid2=abc"))
     }
 
     private class Env(exitIp: String = "203.0.113.10", sudoFails: Boolean = false) {
@@ -207,6 +223,8 @@ class NodeWizardModelTest {
 
     private class FakeNode(private val sudoFails: Boolean) : NodeWizardService {
         val applied = mutableListOf<String>()
+        val plannedWithCookies = mutableListOf<Boolean>()
+        var documentName = ""
         var closed = false
         private val codec = JvmShareLinkCodec()
 
@@ -217,8 +235,10 @@ class NodeWizardModelTest {
 
         override suspend fun newChannel() = NewChannel("of-test12", "ab".repeat(32))
 
-        override suspend fun plan(channel: String, withCookies: Boolean) =
-            NodePlan(channel = channel, port = 31337, actions = listOf("Установить ядро"))
+        override suspend fun plan(channel: String, withCookies: Boolean): NodePlan {
+            plannedWithCookies += withCookies
+            return NodePlan(channel = channel, port = 31337, actions = listOf("Установить ядро"))
+        }
 
         override suspend fun apply(channel: NewChannel, documentUrl: String, port: Int, sudoPassword: String, cookieHeader: String) {
             if (sudoFails) throw NodeWizardException("sudo не принял пароль", sudo = true)
@@ -240,6 +260,13 @@ class NodeWizardModelTest {
             )
 
         override suspend fun resolve(host: String) = setOf(host)
+        override val documentPage: StateFlow<BrowserPage?> = MutableStateFlow(null)
+        override suspend fun createDocument(fileName: String, onStep: (String) -> Unit): YandexDocument {
+            documentName = fileName
+            onStep("Войдите в аккаунт Яндекса")
+            return YandexDocument("https://disk.yandex.ru/edit/d/abcdefghijklmnopqrstuvwxyz", "Session_id=abc; yandexuid=1")
+        }
+        override fun cancelDocument() = Unit
         override fun close() { closed = true }
     }
 
@@ -251,6 +278,7 @@ class NodeWizardModelTest {
         override val captcha: StateFlow<CaptchaPrompt?> = MutableStateFlow(null)
         override val exitShareLink: StateFlow<String?> = MutableStateFlow(null)
         override val socksAddress: StateFlow<String?> = MutableStateFlow(null)
+        override val captchaPage: StateFlow<BrowserPage?> = MutableStateFlow(null)
 
         override fun connect(profile: Profile) {
             state.value = ConnectionState.Connected(profile, ConnectionMode.Client, 0)

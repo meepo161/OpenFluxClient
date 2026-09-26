@@ -21,6 +21,7 @@ import io.openflux.desktop.ui.Shortcuts
 import io.openflux.desktop.ui.components.AppIcons
 import io.openflux.desktop.ui.home.HomeTab
 import io.openflux.desktop.ui.shell.OpenFluxApp
+import io.openflux.desktop.web.KcefBrowserViews
 import org.jetbrains.compose.resources.painterResource
 import java.awt.Dimension
 import java.io.RandomAccessFile
@@ -92,7 +93,7 @@ fun main() {
             onPreviewKeyEvent = shortcuts::handle,
         ) {
             LaunchedEffect(Unit) { window.minimumSize = Dimension(720, 520) }
-            OpenFluxApp(container, DesktopScrollbars, shortcuts)
+            OpenFluxApp(container, DesktopScrollbars, shortcuts, KcefBrowserViews)
         }
     }
 }

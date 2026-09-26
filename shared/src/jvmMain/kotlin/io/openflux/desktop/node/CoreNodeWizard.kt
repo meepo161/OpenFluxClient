@@ -6,9 +6,12 @@ import io.openflux.desktop.model.NodePlan
 import io.openflux.desktop.model.NodeWizardException
 import io.openflux.desktop.model.ServerProbe
 import io.openflux.desktop.model.SshTarget
+import io.openflux.desktop.model.YandexDocument
+import io.openflux.desktop.ui.BrowserPage
 import io.openflux.desktop.service.NodeWizardService
 import io.openflux.desktop.service.SettingsRepository
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
@@ -32,6 +35,7 @@ import java.net.InetAddress
 class CoreNodeWizard(
     private val settings: SettingsRepository,
     private val binary: CoreBinary,
+    private val browser: YandexDocBrowser = YandexDocBrowser(),
 ) : NodeWizardService {
     private val json = Json { ignoreUnknownKeys = true }
     private val lock = Mutex()
@@ -102,7 +106,14 @@ class CoreNodeWizard(
         runCatching { InetAddress.getAllByName(host).mapNotNull { it.hostAddress }.toSet() }.getOrDefault(emptySet())
     }
 
+    override val documentPage: StateFlow<BrowserPage?> = browser.page
+
+    override suspend fun createDocument(fileName: String, onStep: (String) -> Unit): YandexDocument = browser.create(fileName, onStep)
+
+    override fun cancelDocument() = browser.cancel()
+
     override fun close() {
+        browser.cancel()
         val current = helper
         helper = null
         if (current != null) {

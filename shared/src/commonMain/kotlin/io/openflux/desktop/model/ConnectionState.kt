@@ -64,6 +64,8 @@ data class CaptchaPrompt(
     val remote: Boolean,
     val error: String = "",
     val busy: Boolean = false,
+    /** The built-in browser getting ready (first-run download). */
+    val progress: String = "",
 )
 
 enum class LogLevel { Info, Success, Warning, Error, Debug }

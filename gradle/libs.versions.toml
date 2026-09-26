@@ -7,6 +7,7 @@ kotlinx-coroutines = "1.11.0"
 kotlinx-serialization = "1.9.0"
 voyager = "1.1.0-beta03"
 zxing = "3.5.3"
+kcef = "2025.03.23"
 
 [libraries]
 compose-runtime = { module = "org.jetbrains.compose.runtime:runtime", version.ref = "composeMultiplatform" }
@@ -24,6 +25,7 @@ voyager-tabNavigator = { module = "cafe.adriel.voyager:voyager-tab-navigator", v
 voyager-screenmodel = { module = "cafe.adriel.voyager:voyager-screenmodel", version.ref = "voyager" }
 voyager-transitions = { module = "cafe.adriel.voyager:voyager-transitions", version.ref = "voyager" }
 zxing-core = { module = "com.google.zxing:core", version.ref = "zxing" }
+kcef = { module = "dev.datlag:kcef", version.ref = "kcef" }
 kotlin-test = { module = "org.jetbrains.kotlin:kotlin-test", version.ref = "kotlin" }
 kotlin-testJunit = { module = "org.jetbrains.kotlin:kotlin-test-junit", version.ref = "kotlin" }
 

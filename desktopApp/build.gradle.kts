@@ -20,6 +20,13 @@ dependencies {
 compose.desktop {
     application {
         mainClass = "io.openflux.desktop.MainKt"
+        // JCEF (the built-in browser) reaches into AWT internals.
+        jvmArgs("--add-opens", "java.desktop/sun.awt=ALL-UNNAMED")
+        jvmArgs("--add-opens", "java.desktop/java.awt.peer=ALL-UNNAMED")
+        if (System.getProperty("os.name").contains("Mac")) {
+            jvmArgs("--add-opens", "java.desktop/sun.lwawt=ALL-UNNAMED")
+            jvmArgs("--add-opens", "java.desktop/sun.lwawt.macosx=ALL-UNNAMED")
+        }
 
         nativeDistributions {
             targetFormats(TargetFormat.Msi, TargetFormat.Exe, TargetFormat.Dmg)
@@ -29,7 +36,7 @@ compose.desktop {
             vendor = "meepo161"
             // Core binaries shipped next to the app (see core/README.md).
             appResourcesRootDir.set(project.layout.projectDirectory.dir("resources"))
-            modules("java.net.http", "jdk.crypto.ec", "jdk.unsupported")
+            modules("java.instrument", "java.management", "java.net.http", "jdk.crypto.ec", "jdk.unsupported")
 
             windows {
                 menuGroup = "OpenFlux"
