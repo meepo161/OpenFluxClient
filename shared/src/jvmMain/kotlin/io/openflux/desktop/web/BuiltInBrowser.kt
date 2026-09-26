@@ -105,7 +105,13 @@ object BuiltInBrowser {
         val client = client(onStep)
         proxy.upstream = upstream
         return withContext(Dispatchers.Swing) {
-            KcefPage(client.createBrowser(url, CefRendering.DEFAULT, false))
+            // Off-screen: frames are drawn by OsrView, see there why.
+            val view = OsrView()
+            val browser = client.createBrowser(url, CefRendering.CefRenderingWithHandler(view.renderHandler, view), false)
+            view.browser = browser
+            // Create it now, not when shown: scripts and cookies work before the page is on screen.
+            browser.createImmediately()
+            KcefPage(browser)
         }
     }
 
@@ -179,6 +185,7 @@ object BuiltInBrowser {
                     settings {
                         cachePath = null
                         locale = "ru-RU"
+                        windowlessRenderingEnabled = true
                         // The core's own (transport/yandex volgaUserAgent), like the
                         // Android app's WebViews: Yandex ties a passed check to it.
                         userAgent = YANDEX_USER_AGENT
