@@ -2,7 +2,8 @@ name: Release
 
 # A tag like v2.1.0 builds OpenFlux for Windows, Linux and macOS and
 # publishes the packages as a GitHub release. "Run workflow" builds them
-# as artifacts only.
+# as artifacts, or, with "publish" and a version, also tags the commit it
+# built as v<version> and publishes that release.
 on:
   push:
     tags: ['v*']
@@ -14,6 +15,10 @@ on:
       core_ref:
         description: 'Core branch, tag or commit in the core repository'
         required: false
+      publish:
+        description: 'Publish a release: tag the commit as v<version>'
+        type: boolean
+        default: false
 
 permissions:
   contents: write
@@ -193,9 +198,15 @@ jobs:
   publish:
     name: Publish the release
     needs: build
-    if: startsWith(github.ref, 'refs/tags/v')
+    if: startsWith(github.ref, 'refs/tags/v') || (inputs.publish && inputs.version != '')
     runs-on: ubuntu-latest
     steps:
+      - name: Tag
+        id: tag
+        run: |
+          if [[ "$GITHUB_REF" == refs/tags/v* ]]; then echo "name=${GITHUB_REF#refs/tags/}" >> "$GITHUB_OUTPUT"
+          else echo "name=v${{ inputs.version }}" >> "$GITHUB_OUTPUT"; fi
+
       - uses: actions/download-artifact@v4
         with:
           path: dist
@@ -206,7 +217,10 @@ jobs:
 
       - uses: softprops/action-gh-release@v2
         with:
-          name: OpenFlux ${{ github.ref_name }}
+          # From "Run workflow" the release creates this tag on the built commit.
+          tag_name: ${{ steps.tag.outputs.name }}
+          target_commitish: ${{ github.sha }}
+          name: OpenFlux ${{ steps.tag.outputs.name }}
           generate_release_notes: true
           files: dist/*
           body: |
