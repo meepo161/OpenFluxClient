@@ -14,6 +14,7 @@ import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeout
 import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.serialization.json.JsonPrimitive
+import org.cef.CefApp
 import org.cef.browser.CefBrowser
 import org.cef.browser.CefFrame
 import org.cef.browser.CefMessageRouter
@@ -83,7 +84,9 @@ object BuiltInBrowser {
 
     val proxy = BrowserProxy()
     private val lock = Mutex()
-    private var client: KCEFClient? = null
+    @Volatile private var client: KCEFClient? = null
+    /** KCEF gets stuck "initializing" when its start fails; this process cannot start it again. */
+    @Volatile private var broken: String? = null
 
     private val installDir: File
         get() {
@@ -106,6 +109,9 @@ object BuiltInBrowser {
 
     /** Cookies the browser would send to [url], HTTP-only ones included. */
     suspend fun cookies(url: String): List<CefCookie> {
+        // Any CEF call before KCEF starts it would start CEF itself with
+        // the wrong settings, and KCEF could not start it afterwards.
+        if (client == null) return emptyList()
         val found = Collections.synchronizedList(mutableListOf<CefCookie>())
         val done = CompletableDeferred<Unit>()
         val started = CefCookieManager.getGlobalManager().visitUrlCookies(url, true) { cookie, count, total, _ ->
@@ -121,6 +127,7 @@ object BuiltInBrowser {
 
     /** Forgets every cookie: a sign-in must not outlive what it was made for. */
     fun clearCookies() {
+        if (client == null) return // nothing to forget, and see cookies()
         runCatching { CefCookieManager.getGlobalManager().deleteCookies(null, null) }
     }
 
@@ -131,6 +138,20 @@ object BuiltInBrowser {
 
     private suspend fun client(onStep: (String) -> Unit): KCEFClient = lock.withLock {
         client?.let { return it }
+        broken?.let { throw IllegalStateException(it) }
+        try {
+            start(onStep).also { client = it }
+        } catch (e: Exception) {
+            val message = e.message ?: "Встроенный браузер не запустился"
+            // A failed download can be tried again; a start that got CEF half up cannot.
+            if (runCatching { CefApp.getInstanceIfAny() }.getOrNull() == null) throw e
+            val final = if ("перезапустите" in message.lowercase()) message else "$message. Перезапустите OpenFlux и повторите"
+            broken = final
+            throw IllegalStateException(final, e)
+        }
+    }
+
+    private suspend fun start(onStep: (String) -> Unit): KCEFClient {
         val port = proxy.start()
         val initialized = CompletableDeferred<Unit>()
         var last = ""
@@ -178,9 +199,10 @@ object BuiltInBrowser {
         }
         if (restart) throw IllegalStateException("Встроенный браузер скачан: перезапустите OpenFlux и повторите")
         error?.let { throw IllegalStateException("Встроенный браузер не запустился: ${it.message ?: it::class.simpleName}") }
-        withTimeoutOrNull(60_000) { initialized.await() }
-            ?: throw IllegalStateException("Встроенный браузер не запустился")
-        val created = KCEF.newClient()
+        withTimeoutOrNull(START_TIMEOUT_MS) { initialized.await() }
+            ?: throw IllegalStateException("Встроенный браузер не запустился за минуту")
+        val created = withTimeoutOrNull(START_TIMEOUT_MS) { KCEF.newClient() }
+            ?: throw IllegalStateException("Встроенный браузер не ответил")
         val router = CefMessageRouter.create(CefMessageRouter.CefMessageRouterConfig(QUERY, "${QUERY}Cancel"))
         router.addHandler(object : CefMessageRouterHandlerAdapter() {
             override fun onQuery(
@@ -199,9 +221,10 @@ object BuiltInBrowser {
             }
         }, true)
         created.addMessageRouter(router)
-        client = created
-        created
+        return created
     }
+
+    private const val START_TIMEOUT_MS = 60_000L
 
     /**
      * The JetBrains Runtime build with JCEF that matches the JCEF classes
