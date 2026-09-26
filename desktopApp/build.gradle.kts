@@ -1,4 +1,9 @@
 import org.jetbrains.compose.desktop.application.dsl.TargetFormat
+import java.io.ByteArrayOutputStream
+import java.net.URI
+import java.security.MessageDigest
+import java.util.zip.ZipInputStream
+import javax.inject.Inject
 
 plugins {
     alias(libs.plugins.kotlinJvm)
@@ -23,6 +28,130 @@ dependencies {
     implementation(libs.compose.components.resources)
     testImplementation(libs.kotlin.testJunit)
 }
+
+/**
+ * The core the app bundles, in resources/<windows|macos|linux> (Compose's
+ * appResources layout, where CoreBinary looks for it): openflux-<os>-<arch>
+ * [.exe], openflux-core.version and, on Windows, wintun.dll. The binaries are
+ * not in git. The release workflow builds them before packaging; for a local
+ * run or package, prepareCore builds the missing ones for this machine with
+ * the local Go, from -PcoreDir=<checkout>, ../OpenFlux next to this
+ * repository (as in the README), or else a clone of fork-main of
+ * meepo161/openfluxfork in build/openflux-core. -PskipCore=true runs the app
+ * without a core (Settings → Ядро then takes a file of your own).
+ */
+abstract class PrepareCore @Inject constructor(private val exec: ExecOperations) : DefaultTask() {
+    @get:Internal abstract val outDir: DirectoryProperty
+    @get:Internal abstract val cloneDir: DirectoryProperty
+    @get:Internal abstract val sourceDirs: ListProperty<File>
+    @get:Internal abstract val goos: Property<String>
+    @get:Internal abstract val goarch: Property<String>
+    @get:Internal abstract val repository: Property<String>
+    @get:Internal abstract val ref: Property<String>
+
+    @get:Internal val coreName: String
+        get() = "openflux-${goos.get()}-${goarch.get()}" + if (goos.get() == "windows") ".exe" else ""
+
+    @get:Internal val missing: Boolean
+        get() {
+            val out = outDir.get().asFile
+            return !File(out, coreName).isFile || (goos.get() == "windows" && !File(out, "wintun.dll").isFile)
+        }
+
+    @TaskAction
+    fun prepare() {
+        val out = outDir.get().asFile.apply { mkdirs() }
+        if (!File(out, coreName).isFile) buildCore(out)
+        if (goos.get() == "windows" && !File(out, "wintun.dll").isFile) wintun(out)
+    }
+
+    private fun buildCore(out: File) {
+        val go = runCatching { run(null, "go", "version") }.getOrNull()
+            ?: throw GradleException(
+                "Нет ядра OpenFlux в ${out.path}, а Go для его сборки не найден. Установите Go (https://go.dev/dl), " +
+                    "соберите ядро scripts/build-core.sh или запустите без него: -PskipCore=true",
+            )
+        val source = sourceDirs.get().firstOrNull { File(it, "go.mod").isFile } ?: clone()
+        logger.lifecycle("Собираю ядро OpenFlux ($coreName) из ${source.path}, $go")
+        val target = File(out, coreName)
+        exec.exec {
+            workingDir = source
+            environment("GOOS", goos.get())
+            environment("GOARCH", goarch.get())
+            environment("CGO_ENABLED", "0")
+            environment("GOFLAGS", "-buildvcs=false")
+            environment("GOTOOLCHAIN", "auto")
+            commandLine("go", "build", "-trimpath", "-ldflags", "-s -w", "-o", target.absolutePath, ".")
+        }
+        target.setExecutable(true)
+        val branch = runCatching { run(source, "git", "rev-parse", "--abbrev-ref", "HEAD") }.getOrNull()
+        val rev = runCatching { run(source, "git", "describe", "--always", "--dirty") }.getOrNull()
+        File(out, "openflux-core.version").writeText(if (branch != null && rev != null) "$branch@$rev\n" else "local\n")
+    }
+
+    private fun clone(): File {
+        val dir = cloneDir.get().asFile
+        if (File(dir, "go.mod").isFile) return dir
+        dir.deleteRecursively()
+        val url = "https://github.com/${repository.get()}"
+        logger.lifecycle("Скачиваю исходники ядра: $url (${ref.get()})")
+        exec.exec { commandLine("git", "clone", "--depth", "1", "-b", ref.get(), url, dir.absolutePath) }
+        return dir
+    }
+
+    /** Wintun for the full tunnel: the official build, checked against its SHA-256 like in the release workflow. */
+    private fun wintun(out: File) {
+        val zip = URI("https://www.wintun.net/builds/wintun-$WINTUN_VERSION.zip").toURL().readBytes()
+        val sha = MessageDigest.getInstance("SHA-256").digest(zip).joinToString("") { "%02x".format(it) }
+        if (sha != WINTUN_SHA256) throw GradleException("wintun-$WINTUN_VERSION.zip: SHA-256 $sha, ожидался $WINTUN_SHA256")
+        val entry = "wintun/bin/${goarch.get()}/wintun.dll"
+        ZipInputStream(zip.inputStream()).use { input ->
+            while (true) {
+                val e = input.nextEntry ?: throw GradleException("В wintun-$WINTUN_VERSION.zip нет $entry")
+                if (e.name == entry) {
+                    File(out, "wintun.dll").writeBytes(input.readBytes())
+                    return
+                }
+            }
+        }
+    }
+
+    private fun run(dir: File?, vararg command: String): String {
+        val stdout = ByteArrayOutputStream()
+        exec.exec {
+            if (dir != null) workingDir = dir
+            commandLine(*command)
+            standardOutput = stdout
+            errorOutput = ByteArrayOutputStream()
+        }
+        return stdout.toString().trim()
+    }
+
+    private companion object {
+        const val WINTUN_VERSION = "0.14.1"
+        const val WINTUN_SHA256 = "07c256185d6ee3652e09fa55c0b673e2624b565e02c4b9091c79ca7d2f24ef51"
+    }
+}
+
+val hostOs = System.getProperty("os.name").lowercase()
+val prepareCore by tasks.registering(PrepareCore::class) {
+    description = "Builds the bundled OpenFlux core for this machine when resources/<os> has none"
+    val goos = when {
+        hostOs.contains("win") -> "windows"
+        hostOs.contains("mac") -> "darwin"
+        else -> "linux"
+    }
+    this.goos.set(goos)
+    goarch.set(if (System.getProperty("os.arch").lowercase() in setOf("aarch64", "arm64")) "arm64" else "amd64")
+    outDir.set(layout.projectDirectory.dir("resources/" + if (goos == "darwin") "macos" else goos))
+    cloneDir.set(layout.buildDirectory.dir("openflux-core"))
+    sourceDirs.set(listOfNotNull((findProperty("coreDir") as String?)?.let(::file), rootDir.resolve("../OpenFlux")))
+    repository.set(providers.gradleProperty("coreRepo").orElse("meepo161/openfluxfork"))
+    ref.set(providers.gradleProperty("coreRef").orElse("fork-main"))
+    val skip = findProperty("skipCore") == "true"
+    onlyIf { !skip && missing }
+}
+tasks.matching { it.name == "prepareAppResources" }.configureEach { dependsOn(prepareCore) }
 
 compose.desktop {
     application {

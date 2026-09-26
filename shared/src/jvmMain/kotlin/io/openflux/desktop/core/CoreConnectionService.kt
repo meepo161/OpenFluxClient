@@ -136,7 +136,8 @@ class CoreConnectionService(
         try {
             val core = binary.resolve(current) ?: throw IllegalStateException(
                 if (current.coreSource == CoreSource.Custom) "Файл ядра не найден: ${current.customCorePath}"
-                else "Встроенное ядро не найдено. Укажите файл ядра в настройках",
+                else "В этой сборке нет встроенного ядра: установите релиз с GitHub, соберите приложение с Go " +
+                    "(./gradlew соберёт ядро сам) или укажите файл ядра в настройках",
             )
             if (current.fullTunnel && current.mode == ConnectionMode.Client) checkFullTunnel(core)
             val runtime = AppDirs.runtime
