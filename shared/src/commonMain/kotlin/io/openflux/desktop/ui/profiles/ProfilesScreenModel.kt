@@ -4,6 +4,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import cafe.adriel.voyager.core.model.ScreenModel
+import cafe.adriel.voyager.core.model.screenModelScope
 import io.openflux.desktop.model.Profile
 import io.openflux.desktop.model.ProfileSource
 import io.openflux.desktop.model.ShareConfig
@@ -11,6 +12,7 @@ import io.openflux.desktop.model.TransportType
 import io.openflux.desktop.model.isActive
 import io.openflux.desktop.model.profile
 import io.openflux.desktop.service.AppContainer
+import io.openflux.desktop.ui.node.NodeWizardModel
 
 /** A profile being edited; [isNew] until it is saved once. */
 data class EditorState(val draft: Profile, val isNew: Boolean, val showProblems: Boolean = false)
@@ -35,6 +37,9 @@ class ProfilesScreenModel(private val container: AppContainer) : ScreenModel {
     var importOpen by mutableStateOf(false)
     var shareFor by mutableStateOf<Profile?>(null)
     var deleteFor by mutableStateOf<Profile?>(null)
+    /** The "Своя нода" wizard while it is open. */
+    var wizard by mutableStateOf<NodeWizardModel?>(null)
+        private set
 
     fun filter(list: List<Profile>): List<Profile> {
         val q = query.trim().lowercase()
@@ -107,6 +112,24 @@ class ProfilesScreenModel(private val container: AppContainer) : ScreenModel {
     fun isRunning(profile: Profile): Boolean {
         val state = connection.state.value
         return state.isActive && state.profile?.id == profile.id
+    }
+
+    // ---- own node ----
+
+    fun openWizard() {
+        if (wizard == null) wizard = NodeWizardModel(container, screenModelScope)
+        editor = null
+    }
+
+    /** Leaves the wizard; [focusId] selects the profile it saved. */
+    fun closeWizard(focusId: String? = null) {
+        wizard?.close()
+        wizard = null
+        if (focusId != null) selectedId = focusId
+    }
+
+    override fun onDispose() {
+        wizard?.close()
     }
 
     // ---- import ----

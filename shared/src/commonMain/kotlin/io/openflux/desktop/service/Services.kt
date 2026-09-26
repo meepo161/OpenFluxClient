@@ -10,7 +10,6 @@ import io.openflux.desktop.model.NewChannel
 import io.openflux.desktop.model.NodePlan
 import io.openflux.desktop.model.ServerProbe
 import io.openflux.desktop.model.SshTarget
-import io.openflux.desktop.model.YandexDocument
 import io.openflux.desktop.model.Profile
 import io.openflux.desktop.model.ShareLinkCodec
 import io.openflux.desktop.model.TrafficStats
@@ -83,9 +82,9 @@ interface PlatformServices {
 
 /**
  * The "Своя нода" wizard's server side: installs an independent exit
- * channel on the user's VDS over SSH (the core's --node-wizard), creates
- * the channel's Yandex document in an isolated browser and checks it.
- * Calls block until done and fail with NodeWizardException.
+ * channel on the user's VDS over SSH (the core's --node-wizard) and checks
+ * the channel's Yandex document, which the user creates in their own
+ * browser. Calls block until done and fail with NodeWizardException.
  */
 interface NodeWizardService {
     /** SSH in, download the pinned installer and look at the server. */
@@ -102,14 +101,6 @@ interface NodeWizardService {
     suspend fun shareLink(name: String, documentUrl: String, key: String, host: String, port: Int): String
     /** The addresses [host] resolves to, to compare with the tunnel's exit. */
     suspend fun resolve(host: String): Set<String>
-
-    /**
-     * Opens an isolated browser for the user to sign in to Yandex, then
-     * creates /openflux/[fileName] on their Disk with edit access by link.
-     * [onStep] reports progress. The browser profile is wiped afterwards.
-     */
-    suspend fun createDocument(fileName: String, onStep: (String) -> Unit): YandexDocument
-    fun cancelDocument()
 
     /** Ends the SSH session and the helper process. */
     fun close()

@@ -46,6 +46,12 @@ object CaptchaBrowserCookies {
     }
 }
 
+/** Microsoft Edge, which the Yandex check opens in (every Windows 10/11 has it). */
+internal fun findEdge(): File = listOf(
+    File("C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe"),
+    File("C:/Program Files/Microsoft/Edge/Application/msedge.exe"),
+).firstOrNull(File::isFile) ?: throw IllegalStateException("Не найден Microsoft Edge: он нужен для проверки Яндекса")
+
 /** An isolated Edge window; cookies are read only when the user submits the check. */
 class CaptchaBrowser : AutoCloseable {
     private val http = HttpClient.newHttpClient()

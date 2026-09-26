@@ -17,6 +17,9 @@
 - системный прокси Windows с возвратом прежних настроек при отключении,
   выходе и после сбоя;
 - проверки Яндекса в отдельном окне Edge, cookies уходят ядру (и ноде);
+- мастер «Своя нода»: ставит отдельный канал на свой VDS по SSH, документ
+  канала создаётся в браузере по умолчанию, потом мастер подключается через
+  новую ноду и проверяет внешний IP, а профиль сохраняет или отдаёт QR-кодом;
 - журнал с поиском, фильтром и скрытием ключей, трей, светлая и тёмная тема.
 
 ## Сборка и запуск
@@ -31,11 +34,12 @@
 ```
 
 Встроенное ядро лежит в `desktopApp/resources/windows` и в git не входит.
-Его собирает скрипт из ветки ядра с IPC-статусом и `--http-proxy`
-(`feat/node-wizard` в OpenFluxAndroid-newbase), нужен Docker:
+Его собирает скрипт из ядра в [openfluxandroidfork](https://github.com/meepo161/openfluxandroidfork)
+с IPC-статусом, `--http-proxy` и `--node-wizard` (помощник мастера нод: JSON
+по stdin/stdout, SSH и установка через `provision`), нужен Docker:
 
 ```bash
-scripts/build-core.sh ../path/to/OpenFluxAndroid-newbase
+scripts/build-core.sh ../path/to/openfluxandroidfork
 ```
 
 В настройках можно указать и свой файл ядра.

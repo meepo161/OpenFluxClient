@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # Builds the core the app bundles from an OpenFlux checkout (needs the IPC
-# status and --http-proxy changes) with the Go toolchain in Docker:
+# status, --http-proxy and --node-wizard changes) with the Go toolchain in Docker:
 #
-#   scripts/build-core.sh ../OpenFluxAndroid-newbase [image]
+#   scripts/build-core.sh ../openfluxandroidfork [image]
 #
 # Writes desktopApp/resources/windows/openflux-windows-amd64.exe and
 # openflux-core.version (branch@commit, shown under Settings → About).

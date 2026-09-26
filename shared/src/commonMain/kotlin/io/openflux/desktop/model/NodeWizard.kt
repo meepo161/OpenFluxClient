@@ -44,11 +44,6 @@ data class NewChannel(val id: String, val key: String) {
     override fun toString() = "NewChannel($id)"
 }
 
-/** The channel's Yandex document and the sign-in the node may open it with. */
-data class YandexDocument(val url: String, val cookieHeader: String) {
-    override fun toString() = "YandexDocument($url)"
-}
-
 /** A server the wizard has installed on before, to fill the form again. */
 @Serializable
 data class KnownServer(val host: String, val port: Int, val user: String)
@@ -72,4 +67,19 @@ object NodeDocuments {
 
     /** The document link without query or fragment, null if it is not a Yandex document. */
     fun clean(url: String): String? = url.trim().replace(Regex("[?#].*$"), "").takeIf(DOC_URL::matches)
+}
+
+object NodeServers {
+    const val MAX_KNOWN = 5
+
+    /** The key [AppSettings.knownHostKeys] keeps a server's fingerprint under. */
+    fun hostKeyId(host: String, port: Int) = "${host.trim().lowercase()}:$port"
+
+    /** [server] first, then the others without it, at most [MAX_KNOWN]. */
+    fun remember(known: List<KnownServer>, server: KnownServer): List<KnownServer> =
+        (listOf(server) + known.filterNot { it.host.equals(server.host, ignoreCase = true) && it.port == server.port })
+            .take(MAX_KNOWN)
+
+    /** A TCP port, null when [text] is not one. */
+    fun port(text: String): Int? = text.trim().toIntOrNull()?.takeIf { it in 1..65535 }
 }
