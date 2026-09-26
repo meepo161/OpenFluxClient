@@ -6,6 +6,11 @@ import io.openflux.desktop.model.CaptchaPrompt
 import io.openflux.desktop.model.ConnectionState
 import io.openflux.desktop.model.ExitAddress
 import io.openflux.desktop.model.LogLine
+import io.openflux.desktop.model.NewChannel
+import io.openflux.desktop.model.NodePlan
+import io.openflux.desktop.model.ServerProbe
+import io.openflux.desktop.model.SshTarget
+import io.openflux.desktop.model.YandexDocument
 import io.openflux.desktop.model.Profile
 import io.openflux.desktop.model.ShareLinkCodec
 import io.openflux.desktop.model.TrafficStats
@@ -64,6 +69,8 @@ interface PlatformServices {
     fun qrFromFile(path: String): String?
     /** A file the user picks; null if they cancel. */
     fun pickFile(title: String, extensions: List<String>): String?
+    /** A small text file's contents (an SSH key), null if it cannot be read. */
+    fun readTextFile(path: String, maxBytes: Int = 64 * 1024): String?
     /** The QR modules of [text], rows of dark (true) cells. */
     fun qrMatrix(text: String): List<BooleanArray>
     fun openUrl(url: String)
@@ -74,6 +81,40 @@ interface PlatformServices {
     suspend fun latestRelease(): String?
 }
 
+/**
+ * The "Своя нода" wizard's server side: installs an independent exit
+ * channel on the user's VDS over SSH (the core's --node-wizard), creates
+ * the channel's Yandex document in an isolated browser and checks it.
+ * Calls block until done and fail with NodeWizardException.
+ */
+interface NodeWizardService {
+    /** SSH in, download the pinned installer and look at the server. */
+    suspend fun connect(target: SshTarget): ServerProbe
+    suspend fun newChannel(): NewChannel
+    /** What installing [channel] would change; port 0 lets the server pick. */
+    suspend fun plan(channel: String, withCookies: Boolean): NodePlan
+    /** Install and start the channel. [cookieHeader] "" leaves the node signed out. */
+    suspend fun apply(channel: NewChannel, documentUrl: String, port: Int, sudoPassword: String, cookieHeader: String)
+    suspend fun remove(channel: String, sudoPassword: String)
+    /** Whether the node can use the document (edit by link), as an anonymous visitor. */
+    suspend fun checkDocument(documentUrl: String)
+    /** The channel's `openflux://` link: the document, direct to host:port as backup. */
+    suspend fun shareLink(name: String, documentUrl: String, key: String, host: String, port: Int): String
+    /** The addresses [host] resolves to, to compare with the tunnel's exit. */
+    suspend fun resolve(host: String): Set<String>
+
+    /**
+     * Opens an isolated browser for the user to sign in to Yandex, then
+     * creates /openflux/[fileName] on their Disk with edit access by link.
+     * [onStep] reports progress. The browser profile is wiped afterwards.
+     */
+    suspend fun createDocument(fileName: String, onStep: (String) -> Unit): YandexDocument
+    fun cancelDocument()
+
+    /** Ends the SSH session and the helper process. */
+    fun close()
+}
+
 /** Everything the UI depends on, built once in main. */
 class AppContainer(
     val profiles: ProfileRepository,
@@ -81,6 +122,7 @@ class AppContainer(
     val connection: ConnectionService,
     val platform: PlatformServices,
     val shareCodec: ShareLinkCodec,
+    val nodeWizard: NodeWizardService,
 )
 
 val LocalAppContainer = staticCompositionLocalOf<AppContainer> { error("AppContainer is not provided") }

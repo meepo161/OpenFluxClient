@@ -55,10 +55,7 @@ class CaptchaBrowser : AutoCloseable {
     fun open(request: IpcCookiesRequest) {
         require(URI(request.url).scheme == "https") { "The check URL must use HTTPS" }
         close()
-        val edge = listOf(
-            File("C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe"),
-            File("C:/Program Files/Microsoft/Edge/Application/msedge.exe"),
-        ).firstOrNull(File::isFile) ?: throw IllegalStateException("Не найден Microsoft Edge: он нужен для проверки Яндекса")
+        val edge = findEdge()
         val appData = System.getenv("LOCALAPPDATA")?.let(::File)
             ?: File(System.getProperty("user.home"), "AppData/Local")
         val profile = File(appData, "OpenFlux/auth-browser")

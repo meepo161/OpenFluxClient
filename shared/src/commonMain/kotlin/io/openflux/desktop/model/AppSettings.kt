@@ -44,4 +44,8 @@ data class AppSettings(
     /** Set while OpenFlux has changed the Windows proxy; restored on exit or next start. */
     val savedSystemProxy: SavedSystemProxy? = null,
     val sidebarCollapsed: Boolean = false,
+    /** Node wizard: trusted SSH host keys by "host:port". */
+    val knownHostKeys: Map<String, String> = emptyMap(),
+    /** Node wizard: servers used before, newest first. No passwords. */
+    val knownServers: List<KnownServer> = emptyList(),
 )

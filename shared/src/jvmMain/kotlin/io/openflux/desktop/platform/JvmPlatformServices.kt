@@ -74,6 +74,12 @@ class JvmPlatformServices(
         return File(dialog.directory, file).absolutePath
     }
 
+    override fun readTextFile(path: String, maxBytes: Int): String? = runCatching {
+        val file = File(path)
+        if (!file.isFile || file.length() > maxBytes) return null
+        file.readText()
+    }.getOrNull()
+
     override fun qrMatrix(text: String): List<BooleanArray> {
         val matrix = QRCodeWriter().encode(
             text, BarcodeFormat.QR_CODE, 0, 0,

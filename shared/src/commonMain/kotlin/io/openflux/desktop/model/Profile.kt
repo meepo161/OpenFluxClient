@@ -4,7 +4,7 @@ import kotlinx.serialization.Serializable
 
 /** Where a profile came from; shown in the list and details. */
 @Serializable
-enum class ProfileSource(val label: String) { Manual("Вручную"), Link("Ссылка openflux://"), Qr("QR-код") }
+enum class ProfileSource(val label: String) { Manual("Вручную"), Link("Ссылка openflux://"), Qr("QR-код"), Node("Своя нода") }
 
 /** One extra carrier of a Session profile. */
 @Serializable

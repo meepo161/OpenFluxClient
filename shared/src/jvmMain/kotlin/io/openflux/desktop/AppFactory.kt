@@ -5,6 +5,7 @@ import io.openflux.desktop.core.CoreConnectionService
 import io.openflux.desktop.data.FileProfileRepository
 import io.openflux.desktop.data.FileSettingsRepository
 import io.openflux.desktop.data.JvmShareLinkCodec
+import io.openflux.desktop.node.CoreNodeWizard
 import io.openflux.desktop.platform.JvmPlatformServices
 import io.openflux.desktop.service.AppContainer
 
@@ -18,5 +19,6 @@ fun createAppContainer(appVersion: String): AppContainer {
         connection = CoreConnectionService(settings, binary),
         platform = JvmPlatformServices(appVersion) { binary.version() },
         shareCodec = JvmShareLinkCodec(),
+        nodeWizard = CoreNodeWizard(settings, binary),
     )
 }
