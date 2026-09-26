@@ -40,8 +40,8 @@ data class HostKeyPrompt(val fingerprint: String, val mismatch: Boolean)
  * again on the same server adds another channel next to the existing ones.
  *
  * The SSH password, private key and sudo password live only in this object
- * for the length of the wizard. The Yandex document is made by the user in
- * their default browser; OpenFlux never sees that login.
+ * for the length of the wizard; the Yandex login (cookies from the built-in
+ * browser) only until install.
  */
 @Stable
 class NodeWizardModel(private val container: AppContainer, private val scope: CoroutineScope) {
@@ -80,10 +80,16 @@ class NodeWizardModel(private val container: AppContainer, private val scope: Co
     /** Why the node, not this computer, will check the document. */
     var documentWarning by mutableStateOf("")
         private set
-    /** Yandex Disk was opened: new document links on the clipboard are picked up. */
-    var watchingClipboard by mutableStateOf(false)
+    /** Progress of the built-in browser while the document is being made. */
+    var documentProgress by mutableStateOf<String?>(null)
         private set
-    private var clipboardBaseline: String? = null
+    /** The Yandex sign-in for the node, dropped once it is installed. */
+    private var yandexCookies = ""
+    /** The document the sign-in created; another document gets none. */
+    private var cookiesDocument = ""
+    val nodeSignedIn: Boolean get() = yandexCookies.isNotEmpty()
+    /** The Yandex page to show while the document is being made. */
+    val documentPage get() = service.documentPage
 
     // Step 3: plan.
     var plan by mutableStateOf<NodePlan?>(null)
@@ -177,29 +183,22 @@ class NodeWizardModel(private val container: AppContainer, private val scope: Co
 
     // ---- step 2: document ----
 
-    /** The name to give the document: tells the user's documents apart. */
-    val documentName: String get() = channel?.let { "openflux-${it.id}" }.orEmpty()
-
-    /**
-     * Opens Yandex Disk in the default browser, where the user creates the
-     * document and copies its edit link. From then on a new Yandex document
-     * link on the clipboard is picked up (see [pickUpClipboard]); the one
-     * there already may belong to another channel, so it is ignored.
-     */
-    fun openYandexDisk() {
-        clipboardBaseline = NodeDocuments.clean(container.platform.clipboardText().orEmpty())
-        watchingClipboard = true
-        container.platform.openUrl(YANDEX_DISK_URL)
+    fun createDocument() {
+        val channel = channel ?: return
+        launchCall("Открываю Яндекс во встроенном браузере…") {
+            try {
+                val document = service.createDocument("openflux-${channel.id}") { documentProgress = it }
+                yandexCookies = document.cookieHeader.takeIf(NodeDocuments::signedIn).orEmpty()
+                cookiesDocument = document.url
+                checkNow(document.url)
+            } finally {
+                documentProgress = null
+            }
+        }
     }
 
-    /** Called about once a second on the document step. */
-    fun pickUpClipboard() {
-        if (!watchingClipboard || busy != null || step != WizardStep.Document) return
-        val link = NodeDocuments.clean(container.platform.clipboardText().orEmpty()) ?: return
-        if (link == clipboardBaseline) return
-        clipboardBaseline = link
-        documentInput = link
-        checkDocument()
+    fun cancelDocument() {
+        service.cancelDocument()
     }
 
     fun checkDocument() {
@@ -208,6 +207,7 @@ class NodeWizardModel(private val container: AppContainer, private val scope: Co
 
     private suspend fun checkNow(url: String) {
         val clean = NodeDocuments.clean(url) ?: throw NodeWizardException("Нужна ссылка вида https://docs.yandex.ru/edit/d/…")
+        if (clean != cookiesDocument) yandexCookies = ""
         documentUrl = clean
         documentInput = clean
         busy = "Проверяю документ так, как его увидит нода…"
@@ -221,9 +221,15 @@ class NodeWizardModel(private val container: AppContainer, private val scope: Co
             "Яндекс попросил проверку у этого компьютера, поэтому документ проверит сама нода при запуске."
         }
         busy = "Спрашиваю сервер, что изменится…"
-        plan = service.plan(channel!!.id, withCookies = false)
+        plan = service.plan(channel!!.id, withCookies = yandexCookies.isNotEmpty())
         if (needsSudoPassword && sudoPassword.isEmpty() && !useKey) sudoPassword = password
         step = WizardStep.Plan
+    }
+
+    fun forgetYandexSignIn() {
+        yandexCookies = ""
+        // The plan lists the sign-in step; ask again without it.
+        launchCall("Спрашиваю сервер, что изменится…") { plan = service.plan(channel!!.id, withCookies = false) }
     }
 
     // ---- step 3: install ----
@@ -235,10 +241,9 @@ class NodeWizardModel(private val container: AppContainer, private val scope: Co
         launchCall("Устанавливаю ноду: скачиваю ядро, пишу конфигурацию, запускаю…", onFailure = { e ->
             if (e.sudo) { error = "sudo не принял пароль"; true } else false
         }) {
-            // No Yandex sign-in for the node: the document is made in the
-            // user's own browser, whose cookies OpenFlux does not read.
-            service.apply(channel, documentUrl, plan.port, sudoPassword, "")
+            service.apply(channel, documentUrl, plan.port, sudoPassword, yandexCookies)
             installed = true
+            yandexCookies = ""
             val link = service.shareLink(profileName(), documentUrl, channel.key, host.trim(), plan.port)
             shareLink = link
             val candidate = Profile.fromShare(
@@ -381,16 +386,14 @@ class NodeWizardModel(private val container: AppContainer, private val scope: Co
 
     fun copyLink() = container.platform.setClipboardText(shareLink)
 
-    fun copyDocumentName() {
-        container.platform.setClipboardText(documentName)
-    }
+
 
     fun qr() = container.platform.qrMatrix(shareLink)
 
     /** Ends SSH and the Yandex window; drops the test connection of an unsaved profile. */
     fun close() {
         job?.cancel()
-        watchingClipboard = false
+        service.cancelDocument()
         service.close()
         val state = connection.state.value
         if (!saved && profile != null && state.profile?.id == profile?.id && state.isActive) connection.disconnect()
@@ -398,6 +401,7 @@ class NodeWizardModel(private val container: AppContainer, private val scope: Co
         privateKey = ""
         passphrase = ""
         sudoPassword = ""
+        yandexCookies = ""
     }
 
     /**
@@ -430,7 +434,6 @@ class NodeWizardModel(private val container: AppContainer, private val scope: Co
 
     companion object {
         private const val VERIFY_TIMEOUT_MS = 150_000L
-        private const val YANDEX_DISK_URL = "https://disk.yandex.ru/client/disk"
         private const val POLL_MS = 400L
     }
 }

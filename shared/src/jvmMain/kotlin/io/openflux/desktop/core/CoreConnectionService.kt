@@ -4,6 +4,7 @@ import io.openflux.desktop.data.AppDirs
 import io.openflux.desktop.data.restrictToOwner
 import io.openflux.desktop.model.AppSettings
 import io.openflux.desktop.model.CaptchaPrompt
+import io.openflux.desktop.ui.BrowserPage
 import io.openflux.desktop.model.ConnectionMode
 import io.openflux.desktop.model.ConnectionState
 import io.openflux.desktop.model.CoreConfig
@@ -72,6 +73,7 @@ class CoreConnectionService(
     private val lock = Any()
     private var run: Run? = null
     private val captchaBrowser = CaptchaBrowser()
+    override val captchaPage: StateFlow<BrowserPage?> = captchaBrowser.page
     private var pendingCaptcha: IpcCookiesRequest? = null
 
     /** One started core: its process, files and the settings it began with. */
@@ -387,8 +389,11 @@ class CoreConnectionService(
     override fun openCaptcha() {
         val request = pendingCaptcha ?: return
         scope.launch {
-            val error = runCatching { captchaBrowser.open(request) }.exceptionOrNull()
-            _captcha.update { it?.copy(error = error?.message.orEmpty(), busy = false) }
+            _captcha.update { it?.copy(error = "", progress = "Открываю страницу проверки…") }
+            val error = runCatching {
+                captchaBrowser.open(request) { step -> _captcha.update { it?.copy(progress = step) } }
+            }.exceptionOrNull()
+            _captcha.update { it?.copy(error = error?.message.orEmpty(), progress = "") }
         }
     }
 
@@ -398,7 +403,7 @@ class CoreConnectionService(
         scope.launch {
             try {
                 val jar = captchaBrowser.collect(request.url)
-                require(jar.isNotEmpty()) { "Нет cookies для ${URI(request.url).host}: пройдите проверку в окне Edge" }
+                require(jar.isNotEmpty()) { "Нет cookies для ${URI(request.url).host}: пройдите проверку на странице выше" }
                 val ipc = synchronized(lock) { run }?.ipc ?: throw IllegalStateException("Ядро не на связи")
                 ipc.offerCookies(IpcCookiesOffer(request.transport, jar, remote = request.remote))
                 log(LogLevel.Success, "Проверка пройдена, cookies переданы ${if (request.remote) "ноде" else "ядру"}")

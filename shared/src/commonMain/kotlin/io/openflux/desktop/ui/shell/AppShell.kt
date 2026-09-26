@@ -40,7 +40,10 @@ import io.openflux.desktop.model.ThemeMode
 import io.openflux.desktop.model.isActive
 import io.openflux.desktop.service.AppContainer
 import io.openflux.desktop.service.LocalAppContainer
+import io.openflux.desktop.ui.BrowserViews
+import io.openflux.desktop.ui.LocalBrowserViews
 import io.openflux.desktop.ui.LocalScrollbars
+import io.openflux.desktop.ui.NoBrowserViews
 import io.openflux.desktop.ui.LocalShortcuts
 import io.openflux.desktop.ui.Scrollbars
 import io.openflux.desktop.ui.Shortcuts
@@ -87,7 +90,7 @@ val LocalShell = staticCompositionLocalOf { ShellController() }
 val AppTabs: List<Tab> = listOf(HomeTab, ProfilesTab, LogsTab, SettingsTab)
 
 @Composable
-fun OpenFluxApp(container: AppContainer, scrollbars: Scrollbars, shortcuts: Shortcuts) {
+fun OpenFluxApp(container: AppContainer, scrollbars: Scrollbars, shortcuts: Shortcuts, browsers: BrowserViews = NoBrowserViews) {
     val settings by container.settings.settings.collectAsState()
     val dark = when (settings.theme) {
         ThemeMode.System -> isSystemInDarkTheme()
@@ -101,6 +104,7 @@ fun OpenFluxApp(container: AppContainer, scrollbars: Scrollbars, shortcuts: Shor
             LocalAppContainer provides container,
             LocalToaster provides toaster,
             LocalScrollbars provides scrollbars,
+            LocalBrowserViews provides browsers,
             LocalShortcuts provides shortcuts,
             LocalShell provides shell,
         ) {

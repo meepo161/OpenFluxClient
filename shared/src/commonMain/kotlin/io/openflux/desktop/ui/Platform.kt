@@ -45,3 +45,19 @@ class Shortcuts {
 }
 
 val LocalShortcuts = staticCompositionLocalOf { Shortcuts() }
+
+/** A page of the built-in browser (Yandex sign-in, checks); [BrowserViews] shows it. */
+interface BrowserPage
+
+/** Shows a [BrowserPage] inside the window; the platform supplies it like [Scrollbars]. */
+interface BrowserViews {
+    @Composable
+    fun Page(page: BrowserPage, modifier: Modifier)
+}
+
+object NoBrowserViews : BrowserViews {
+    @Composable
+    override fun Page(page: BrowserPage, modifier: Modifier) = Unit
+}
+
+val LocalBrowserViews = staticCompositionLocalOf<BrowserViews> { NoBrowserViews }

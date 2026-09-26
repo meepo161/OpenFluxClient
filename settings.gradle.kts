@@ -24,6 +24,10 @@ dependencyResolutionManagement {
             }
         }
         mavenCentral()
+        // JOGL for JCEF (KCEF, the built-in browser).
+        maven("https://jogamp.org/deployment/maven") {
+            mavenContent { includeGroupAndSubgroups("org.jogamp") }
+        }
     }
 }
 

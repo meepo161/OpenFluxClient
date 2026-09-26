@@ -1,5 +1,6 @@
 package io.openflux.desktop.ui.node
 
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -30,7 +31,6 @@ import androidx.compose.material.icons.rounded.Warning
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -38,10 +38,11 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
-import kotlinx.coroutines.delay
 import io.openflux.desktop.service.LocalAppContainer
+import io.openflux.desktop.ui.LocalBrowserViews
 import io.openflux.desktop.ui.LocalScrollbars
 import io.openflux.desktop.ui.components.AppButton
 import io.openflux.desktop.ui.components.AppCard
@@ -185,10 +186,11 @@ private fun Status(model: NodeWizardModel) {
     val busy = model.busy
     val error = model.error
     val notice = model.notice
-    if (busy == null && error == null && notice == null) return
+    // The document step shows the browser's progress next to the browser.
+    if ((busy == null || model.documentProgress != null) && error == null && notice == null) return
     Spacer(Modifier.height(AppTheme.spacing.l))
     when {
-        busy != null -> Banner(busy, Tone.Accent, icon = Icons.Rounded.Info)
+        busy != null && model.documentProgress == null -> Banner(busy, Tone.Accent, icon = Icons.Rounded.Info)
         error != null -> Banner(error, Tone.Danger, icon = Icons.Rounded.ErrorOutline)
         notice != null -> Banner(notice, Tone.Success, icon = Icons.Rounded.CheckCircle)
     }
@@ -260,13 +262,9 @@ private fun ColumnScope.ServerStep(model: NodeWizardModel) {
 @Composable
 private fun ColumnScope.DocumentStep(model: NodeWizardModel) {
     val idle = model.busy == null
-    val toaster = LocalToaster.current
-    LaunchedEffect(model.watchingClipboard) {
-        while (model.watchingClipboard) {
-            delay(1000)
-            model.pickUpClipboard()
-        }
-    }
+    val page by model.documentPage.collectAsState()
+    val progress = model.documentProgress
+    val creating = progress != null
     model.probe?.let { probe ->
         AppCard(padding = 0.dp) {
             KeyValueRow("Сервер", "${model.user.trim()}@${model.host.trim()}")
@@ -281,35 +279,37 @@ private fun ColumnScope.DocumentStep(model: NodeWizardModel) {
     }
     AppTextField(model.name, { model.name = it }, label = "Название профиля", enabled = idle)
     model.channel?.let { Note("Канал: ${it.id}. Для него создан отдельный ключ шифрования, его знают только этот компьютер и нода.") }
-    Spacer(Modifier.height(AppTheme.spacing.xl))
-    SectionLabel("Документ в Яндексе")
-    Spacer(Modifier.height(AppTheme.spacing.s))
-    AppCard {
-        listOf(
-            "Откройте Яндекс Диск в браузере и войдите в аккаунт.",
-            "Создайте текстовый документ с именем «${model.documentName}».",
-            "В документе нажмите «Поделиться», выберите доступ по ссылке «Редактирование» и скопируйте ссылку.",
-        ).forEachIndexed { index, text ->
-            Row(Modifier.padding(vertical = AppTheme.spacing.xs)) {
-                Text("${index + 1}.", style = AppTheme.typography.bodyStrong, color = AppTheme.colors.accent, modifier = Modifier.width(22.dp))
-                Text(text, style = AppTheme.typography.body, color = AppTheme.colors.text)
-            }
+    Actions {
+        if (creating) {
+            AppButton("Отменить вход в Яндекс", model::cancelDocument, style = ButtonStyle.Secondary)
+        } else {
+            AppButton("Войти в Яндекс и создать документ", model::createDocument, leadingResource = AppIcons.Yandex, enabled = idle)
         }
     }
-    Actions {
-        AppButton("Открыть Яндекс Диск", model::openYandexDisk, leadingResource = AppIcons.Yandex, enabled = idle)
-        AppButton("Копировать имя документа", {
-            model.copyDocumentName()
-            toaster.show("Имя документа скопировано")
-        }, style = ButtonStyle.Secondary, leading = Icons.Rounded.ContentCopy, enabled = idle)
+    if (progress != null) {
+        Spacer(Modifier.height(AppTheme.spacing.m))
+        Banner(progress, Tone.Accent, icon = Icons.Rounded.Info)
     }
-    Note(
-        if (model.watchingClipboard) "Жду ссылку: как только вы её скопируете, мастер подставит и проверит её сам."
-        else "Документ открывается в вашем браузере по умолчанию, OpenFlux не видит ни пароль, ни вход в Яндекс.",
-    )
-    Spacer(Modifier.height(AppTheme.spacing.l))
-    AppTextField(model.documentInput, { model.documentInput = it.trim() }, label = "Ссылка на документ",
-        placeholder = "https://disk.yandex.ru/edit/d/…", monospace = true, enabled = idle)
+    val shown = page
+    if (shown != null) {
+        Spacer(Modifier.height(AppTheme.spacing.m))
+        Box(
+            Modifier.fillMaxWidth().height(560.dp).clip(AppTheme.shapes.card)
+                .border(1.dp, AppTheme.colors.border, AppTheme.shapes.card),
+        ) {
+            LocalBrowserViews.current.Page(shown, Modifier.fillMaxSize())
+        }
+    } else {
+        Note(
+            "Вход откроется прямо здесь, во встроенном браузере. Документ появится в папке openflux на вашем Яндекс Диске " +
+                "с доступом «Редактирование» по ссылке. После этого браузер забывает вход, остаются только cookies для ноды.",
+        )
+    }
+    Spacer(Modifier.height(AppTheme.spacing.xl))
+    SectionLabel("Или свой пустой документ")
+    Spacer(Modifier.height(AppTheme.spacing.s))
+    AppTextField(model.documentInput, { model.documentInput = it.trim() }, placeholder = "https://disk.yandex.ru/edit/d/…",
+        monospace = true, enabled = idle, helper = "Ссылка с доступом «Редактирование» из «Поделиться»")
     Actions {
         AppButton("Проверить ссылку", model::checkDocument, style = ButtonStyle.Secondary,
             enabled = idle && model.documentInput.isNotBlank())
@@ -341,6 +341,16 @@ private fun ColumnScope.PlanStep(model: NodeWizardModel) {
     }
     val keep = if (plan.untouched.isNotEmpty()) "Каналы, которые уже есть на сервере, не изменятся: ${plan.untouched.joinToString()}. " else ""
     Note(keep + "Остальные программы на сервере (Docker, VPN, панели) мастер не трогает.")
+    if (model.nodeSignedIn) {
+        Spacer(Modifier.height(AppTheme.spacing.m))
+        Banner(
+            "Нода будет открывать документ под вашим аккаунтом Яндекса: так Яндекс не требует от сервера капчу. " +
+                "Кто получит root на сервере, получит и доступ к этому аккаунту, поэтому лучше входить отдельным аккаунтом для документов.",
+            Tone.Warning,
+            icon = Icons.Rounded.Warning,
+            action = { TextAction("Не передавать", model::forgetYandexSignIn, enabled = idle) },
+        )
+    }
     if (model.documentWarning.isNotEmpty()) {
         Spacer(Modifier.height(AppTheme.spacing.m))
         Banner(model.documentWarning, Tone.Neutral, icon = Icons.Rounded.Info)
