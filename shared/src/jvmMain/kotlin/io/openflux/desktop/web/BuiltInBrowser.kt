@@ -37,6 +37,8 @@ class KcefPage internal constructor(private val browser: KCEFBrowser) : BrowserP
 
     val url: String get() = browser.url.orEmpty()
 
+    val loading: Boolean get() = runCatching { browser.isLoading }.getOrDefault(true)
+
     @Volatile var closed = false
         private set
 
@@ -177,6 +179,9 @@ object BuiltInBrowser {
                     settings {
                         cachePath = null
                         locale = "ru-RU"
+                        // The core's own (transport/yandex volgaUserAgent), like the
+                        // Android app's WebViews: Yandex ties a passed check to it.
+                        userAgent = YANDEX_USER_AGENT
                         // JCEF's defaults point into the running JVM's java.home; empty
                         // paths make KCEF use the downloaded runtime instead.
                         resourcesDirPath = null
@@ -225,6 +230,7 @@ object BuiltInBrowser {
     }
 
     private const val START_TIMEOUT_MS = 60_000L
+    const val YANDEX_USER_AGENT = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:153.0) Gecko/20100101 Firefox/153.0"
 
     /**
      * The JetBrains Runtime build with JCEF that matches the JCEF classes

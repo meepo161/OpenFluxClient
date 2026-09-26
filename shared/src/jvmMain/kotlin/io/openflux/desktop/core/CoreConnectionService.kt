@@ -394,11 +394,16 @@ class CoreConnectionService(
                 captchaBrowser.open(request) { step -> _captcha.update { it?.copy(progress = step) } }
             }.exceptionOrNull()
             _captcha.update { it?.copy(error = error?.message.orEmpty(), progress = "") }
+            if (error == null && captchaBrowser.awaitPassed() && pendingCaptcha == request) {
+                log(LogLevel.Info, "Страница Яндекса открылась без проверки, передаю cookies")
+                submitCaptcha()
+            }
         }
     }
 
     override fun submitCaptcha() {
         val request = pendingCaptcha ?: return
+        if (_captcha.value?.busy == true) return
         _captcha.update { it?.copy(busy = true, error = "") }
         scope.launch {
             try {

@@ -123,6 +123,26 @@ class NodeWizardModelTest {
     }
 
     @Test
+    fun verificationKeepsTryingWhileTheCarrierComesUp() = runTest {
+        val env = Env()
+        env.connection.failingChecks = 5
+        val wizard = NodeWizardModel(env.container, this)
+        env.settings.update { it.copy(knownHostKeys = mapOf("$serverIp:22" to "SHA256:new")) }
+        wizard.host = serverIp
+        wizard.password = "p"
+        wizard.connect()
+        advanceUntilIdle()
+        wizard.documentInput = docUrl
+        wizard.checkDocument()
+        advanceUntilIdle()
+        wizard.install()
+        advanceUntilIdle()
+        assertEquals(WizardStep.Done, wizard.step, wizard.verifyFailed ?: "")
+        assertEquals(serverIp, wizard.verifiedIp)
+        assertEquals(6, env.connection.checks)
+    }
+
+    @Test
     fun wrongSudoPasswordStaysOnPlan() = runTest {
         val env = Env(sudoFails = true)
         val wizard = NodeWizardModel(env.container, this)
@@ -271,6 +291,9 @@ class NodeWizardModelTest {
     }
 
     private class FakeConnection(private val exitIp: String) : ConnectionService {
+        /** How many exit address checks fail (502 from the core) before one works. */
+        var failingChecks = 0
+        var checks = 0
         override val state = MutableStateFlow<ConnectionState>(ConnectionState.Idle)
         override val traffic = MutableStateFlow(TrafficStats())
         override val exitAddress = MutableStateFlow<ExitAddress>(ExitAddress.Unknown)
@@ -282,7 +305,7 @@ class NodeWizardModelTest {
 
         override fun connect(profile: Profile) {
             state.value = ConnectionState.Connected(profile, ConnectionMode.Client, 0)
-            exitAddress.value = ExitAddress.Known(exitIp)
+            exitAddress.value = check()
             traffic.value = TrafficStats(activeTransport = "vyandex", live = true)
         }
 
@@ -291,7 +314,10 @@ class NodeWizardModelTest {
             exitAddress.value = ExitAddress.Unknown
         }
 
-        override fun refreshExitAddress() = Unit
+        override fun refreshExitAddress() { exitAddress.value = check() }
+
+        private fun check(): ExitAddress =
+            if (checks++ < failingChecks) ExitAddress.Unavailable("Tunnel failed, got: 502") else ExitAddress.Known(exitIp)
         override fun clearLogs() = Unit
         override fun openCaptcha() = Unit
         override fun submitCaptcha() = Unit

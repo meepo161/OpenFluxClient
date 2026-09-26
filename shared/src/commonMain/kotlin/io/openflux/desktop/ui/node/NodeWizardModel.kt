@@ -297,11 +297,14 @@ class NodeWizardModel(private val container: AppContainer, private val scope: Co
             // connect() is asynchronous: the previous connection may still
             // show until the new one starts.
             var started = false
-            var refreshes = 0
+            var lastProblem = ""
             while (verifiedIp.isEmpty()) {
                 if (stopWaitingForYandex) throw NodeWizardException("Проверка остановлена: нода пока не ответила")
                 if (container.platform.now() > deadline) {
-                    throw NodeWizardException("Нода не ответила: проверьте, что сервер доступен, а документ и ключ совпадают")
+                    throw NodeWizardException(
+                        if (lastProblem.isNotEmpty()) "Канал поднялся, но запрос через него не прошёл: $lastProblem"
+                        else "Нода не ответила: проверьте, что сервер доступен, а документ и ключ совпадают",
+                    )
                 }
                 val state = connection.state.value
                 if (state.profile?.id == candidate.id) started = true
@@ -310,7 +313,11 @@ class NodeWizardModel(private val container: AppContainer, private val scope: Co
                     !started -> Unit
                     state is ConnectionState.Failed -> throw NodeWizardException(state.message)
                     state is ConnectionState.Connected -> {
-                        busy = "Канал поднялся, открываю сайт через него…"
+                        busy = when {
+                            connection.captcha.value != null -> "Яндекс просит пройти проверку: пройдите её в открывшемся окне"
+                            lastProblem.isNotEmpty() -> "Канал поднялся, пробую открыть сайт через него ещё раз…"
+                            else -> "Канал поднялся, открываю сайт через него…"
+                        }
                         when (val address = connection.exitAddress.value) {
                             is ExitAddress.Known -> {
                                 if (expected.isNotEmpty() && address.ip !in expected) {
@@ -319,8 +326,10 @@ class NodeWizardModel(private val container: AppContainer, private val scope: Co
                                 verifiedIp = address.ip
                             }
                             is ExitAddress.Unavailable -> {
-                                if (refreshes++ >= 3) throw NodeWizardException("Канал поднялся, но запрос через него не прошёл: ${address.reason}")
-                                delay(2000)
+                                // Like the Android wizard: the carrier may need a
+                                // moment (or a passed check); try until the deadline.
+                                lastProblem = address.reason
+                                delay(RETRY_MS)
                                 connection.refreshExitAddress()
                             }
                             else -> Unit
@@ -435,5 +444,6 @@ class NodeWizardModel(private val container: AppContainer, private val scope: Co
     companion object {
         private const val VERIFY_TIMEOUT_MS = 150_000L
         private const val POLL_MS = 400L
+        private const val RETRY_MS = 4000L
     }
 }
