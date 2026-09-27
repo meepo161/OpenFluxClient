@@ -56,8 +56,8 @@ OpenFlux работает на:
 <table>
 <tr><th>Windows</th><th>Android</th></tr>
 <tr>
-<td><img src="docs/media/windows-connect.gif" width="560" alt="Подключение на Windows"></td>
-<td><img src="docs/media/android-connect.gif" width="250" alt="Подключение на Android"></td>
+<td><img src="docs/media/windows-connect.gif" width="510" alt="Подключение на Windows"></td>
+<td><img src="docs/media/android-connect.gif" width="230" alt="Подключение на Android"></td>
 </tr>
 </table>
 
@@ -67,8 +67,8 @@ OpenFlux работает на:
 <table>
 <tr><th>Windows</th><th>Android</th></tr>
 <tr>
-<td><img src="docs/media/windows-profiles.gif" width="560" alt="Импорт профиля на Windows"></td>
-<td><img src="docs/media/android-profiles.gif" width="250" alt="Импорт профиля на Android"></td>
+<td><img src="docs/media/windows-profiles.gif" width="510" alt="Импорт профиля на Windows"></td>
+<td><img src="docs/media/android-profiles.gif" width="230" alt="Импорт профиля на Android"></td>
 </tr>
 </table>
 
@@ -78,8 +78,8 @@ OpenFlux работает на:
 <table>
 <tr><th>Windows</th><th>Android</th></tr>
 <tr>
-<td><img src="docs/media/windows-node.gif" width="560" alt="Своя нода на Windows"></td>
-<td><img src="docs/media/android-node.gif" width="250" alt="Своя нода на Android"></td>
+<td><img src="docs/media/windows-node.gif" width="510" alt="Своя нода на Windows"></td>
+<td><img src="docs/media/android-node.gif" width="230" alt="Своя нода на Android"></td>
 </tr>
 </table>
 
@@ -98,8 +98,8 @@ OpenFlux работает на:
 <table>
 <tr><th>Windows</th><th>Android</th></tr>
 <tr>
-<td><img src="docs/media/windows-logs.gif" width="560" alt="Журнал на Windows"></td>
-<td><img src="docs/media/android-logs.gif" width="250" alt="Журнал на Android"></td>
+<td><img src="docs/media/windows-logs.gif" width="510" alt="Журнал на Windows"></td>
+<td><img src="docs/media/android-logs.gif" width="230" alt="Журнал на Android"></td>
 </tr>
 </table>
 
