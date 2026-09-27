@@ -281,7 +281,7 @@ jobs:
         run: |
           mkdir -p dist
           find androidApp/build/outputs/apk/release -name '*.apk' -print -exec cp {} dist/ \;
-          for apk in dist/*.apk; do mv "$apk" "OpenFlux-${{ steps.version.outputs.value }}-android-$(basename "$apk")"; done
+          for apk in dist/*.apk; do mv "$apk" "dist/OpenFlux-${{ steps.version.outputs.value }}-android-$(basename "$apk")"; done
           ls -l dist
 
       - uses: actions/upload-artifact@v4
