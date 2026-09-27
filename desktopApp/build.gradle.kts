@@ -171,6 +171,7 @@ compose.desktop {
             packageVersion = appVersion
             description = "OpenFlux desktop client"
             vendor = "meepo161"
+            // The app icon: icons/openflux.svg, drawn as the Android launcher icon.
             // The core (and wintun.dll on Windows) in resources/<windows|macos|linux>,
             // put there by scripts/build-core.sh or the release workflow.
             appResourcesRootDir.set(project.layout.projectDirectory.dir("resources"))
@@ -181,17 +182,20 @@ compose.desktop {
                 upgradeUuid = "3F0C7B52-9A2E-4C1B-8E77-5D2A6B1E9C40"
                 shortcut = true
                 perUserInstall = true
+                iconFile.set(project.file("icons/openflux.ico"))
             }
             macOS {
                 bundleID = "io.openflux.desktop"
                 dockName = "OpenFlux"
                 appCategory = "public.app-category.utilities"
+                iconFile.set(project.file("icons/openflux.icns"))
             }
             linux {
                 packageName = "openflux"
                 menuGroup = "Network"
                 appCategory = "Network"
                 shortcut = true
+                iconFile.set(project.file("icons/openflux.png"))
             }
         }
     }
