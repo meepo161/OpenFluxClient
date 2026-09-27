@@ -442,19 +442,16 @@ class AndroidConnectionService(
     override fun refreshExitAddress() {
         val checked = run ?: return
         if (checked.kind == Kind.Exit) return
+        // OpenFlux stays outside its own VPN, so without a proxy of its own it
+        // cannot ask ipify through the tunnel; only a browser the user opens can.
+        if (checked.kind != Kind.Proxy) {
+            if (run === checked) _exitAddress.value = ExitAddress.Unavailable("откройте api.ipify.org в браузере")
+            return
+        }
         _exitAddress.value = ExitAddress.Checking
         scope.launch {
             val result = runCatching {
-                val proxy = when (checked.kind) {
-                    Kind.Proxy -> Proxy(Proxy.Type.SOCKS, InetSocketAddress(LOOPBACK, checked.settings.socksPort))
-                    else -> {
-                        // OpenFlux stays outside its own VPN; the core lends a proxy through the tunnel.
-                        val address = Mobile.tunnelHTTPProxy().orEmpty()
-                        require(address.isNotEmpty()) { "откройте api.ipify.org в браузере: проверка из приложения есть только для профилей Session" }
-                        val (hostName, port) = address.substringBeforeLast(':') to address.substringAfterLast(':').toInt()
-                        Proxy(Proxy.Type.HTTP, InetSocketAddress(hostName, port))
-                    }
-                }
+                val proxy = Proxy(Proxy.Type.SOCKS, InetSocketAddress(LOOPBACK, checked.settings.socksPort))
                 val connection = URL("https://api.ipify.org").openConnection(proxy) as HttpURLConnection
                 connection.connectTimeout = 20_000
                 connection.readTimeout = 30_000
