@@ -27,6 +27,9 @@ dependencies {
     implementation(libs.kotlinx.coroutines.swing)
     implementation(libs.compose.components.resources)
     testImplementation(libs.kotlin.testJunit)
+    // The README demos drive the real screens (DemoRecorder, OPENFLUX_DEMO=<dir>).
+    @OptIn(org.jetbrains.compose.ExperimentalComposeLibrary::class)
+    testImplementation(compose.uiTest)
 }
 
 /**
