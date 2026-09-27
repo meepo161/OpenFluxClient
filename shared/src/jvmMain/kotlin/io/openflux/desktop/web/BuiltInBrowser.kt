@@ -236,15 +236,7 @@ object BuiltInBrowser {
                         logFile = BrowserLog.cefLogFile.absolutePath
                         logSeverity = dev.datlag.kcef.KCEFBuilder.Settings.LogSeverity.Info
                     }
-                    // Our own list, not JCEF's defaults (which pin the scale factor to 1 and
-                    // blur HiDPI screens). No GPU: a sign-in page does not need it, and a
-                    // bad driver would take the browser down.
-                    val switches = arrayOf(
-                        "--disable-features=SpareRendererForSitePerProcess",
-                        "--disable-gpu",
-                        "--proxy-server=http://127.0.0.1:$port",
-                        "--proxy-bypass-list=<-loopback>",
-                    )
+                    val switches = switches(port, dir)
                     args(*switches)
                     // KCEF hands args() only to CefApp.startup; Chromium reads its
                     // switches from the app handler, which KCEF builds with none. Without
@@ -256,7 +248,7 @@ object BuiltInBrowser {
                 onRestartRequired = { restart = true; BrowserLog.problem("KCEF просит перезапуск") },
             )
         }
-        BrowserLog.info("файлы: " + listOf("jcef_helper.exe", "jcef_helper", "libcef.dll", "libcef.so", "jcef.dll", "icudtl.dat", "resources.pak", "locales")
+        BrowserLog.info("файлы: " + listOf("jcef_helper.exe", "jcef_helper", "libcef.dll", "libcef.so", "jcef.dll", "icudtl.dat", "resources.pak", "locales", "Frameworks")
             .filter { File(dir, it).exists() }.joinToString())
         if (restart) throw IllegalStateException("Встроенный браузер скачан: перезапустите OpenFlux и повторите")
         error?.let { throw IllegalStateException("Встроенный браузер не запустился: ${it.message ?: it::class.simpleName}") }
@@ -330,6 +322,33 @@ object BuiltInBrowser {
             }
         })
     }
+
+    /**
+     * Chromium's switches. Our own list, not JCEF's defaults (which pin the
+     * scale factor to 1 and blur HiDPI screens). No GPU: a sign-in page does
+     * not need it, and a bad driver would take the browser down.
+     *
+     * On macOS Chromium finds its framework and helper only through these
+     * switches. KCEF puts them in CefApp.startup's args alone, so without them
+     * here Chromium looks inside OpenFlux.app, finds nothing and crashes the
+     * app in CefInitialize (EXC_BREAKPOINT).
+     */
+    internal fun switches(
+        port: Int,
+        dir: File,
+        os: String = System.getProperty("os.name"),
+    ): Array<String> = buildList {
+        if (os.startsWith("Mac", ignoreCase = true)) {
+            val frameworks = "${dir.canonicalPath}/Frameworks"
+            add("--framework-dir-path=$frameworks/Chromium Embedded Framework.framework")
+            add("--main-bundle-path=$frameworks/jcef Helper.app")
+            add("--browser-subprocess-path=$frameworks/jcef Helper.app/Contents/MacOS/jcef Helper")
+        }
+        add("--disable-features=SpareRendererForSitePerProcess")
+        add("--disable-gpu")
+        add("--proxy-server=http://127.0.0.1:$port")
+        add("--proxy-bypass-list=<-loopback>")
+    }.toTypedArray()
 
     /** jcef_helper next to libcef; on Windows with its .exe, which KCEF leaves out. */
     private fun helper(dir: File): String? =

@@ -3,6 +3,7 @@ package io.openflux.desktop
 import io.openflux.desktop.web.BrowserProxy
 import io.openflux.desktop.web.BuiltInBrowser
 import java.io.BufferedReader
+import java.io.File
 import java.io.InputStreamReader
 import java.net.InetAddress
 import java.net.ServerSocket
@@ -114,6 +115,22 @@ class BrowserProxyTest {
         assertTrue(BuiltInBrowser.packageUrl("Windows 11", "amd64").endsWith("-windows-x64-b895.97.tar.gz"))
         assertTrue(BuiltInBrowser.packageUrl("Mac OS X", "aarch64").contains("-osx-aarch64-"))
         assertTrue(BuiltInBrowser.packageUrl("Linux", "amd64").startsWith("https://cache-redirector.jetbrains.com/intellij-jbr/jbr_jcef-"))
+    }
+
+    /** Without these Chromium looks for its framework inside OpenFlux.app and crashes the app. */
+    @Test
+    fun macSwitchesPointChromiumAtTheDownloadedFramework() {
+        val dir = File("/Users/u/Library/Application Support/OpenFlux/browser")
+        val mac = BuiltInBrowser.switches(8080, dir, "Mac OS X").toList()
+        val frameworks = "${dir.canonicalPath}/Frameworks"
+        assertTrue("--framework-dir-path=$frameworks/Chromium Embedded Framework.framework" in mac, mac.toString())
+        assertTrue("--main-bundle-path=$frameworks/jcef Helper.app" in mac, mac.toString())
+        assertTrue("--browser-subprocess-path=$frameworks/jcef Helper.app/Contents/MacOS/jcef Helper" in mac, mac.toString())
+        assertTrue("--proxy-server=http://127.0.0.1:8080" in mac, mac.toString())
+
+        val windows = BuiltInBrowser.switches(8080, dir, "Windows 11").toList()
+        assertTrue(windows.none { it.startsWith("--framework-dir-path") }, windows.toString())
+        assertTrue("--disable-gpu" in windows, windows.toString())
     }
 
     @Test
