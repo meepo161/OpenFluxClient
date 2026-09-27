@@ -83,13 +83,14 @@ data class Profile(
 
     /**
      * The encryption context both peers derive keys from: the imported one,
-     * else the URL of the highest-priority transport that has one ("http://#"
-     * when none does, the CLI's --url default).
+     * else what the core derives, the URL of the highest-priority transport
+     * that has one ("http://#" when none does). Cups.online is left out: its
+     * room list only exists once the exit is up.
      */
     fun effectiveContext(): String {
         if (context.isNotBlank()) return context
         return sessionSpecs().sortedByDescending { it.priority }
-            .firstOrNull { it.type.kind == ValueKind.DocumentUrl && it.value.isNotBlank() }?.value
+            .firstOrNull { it.type.kind == ValueKind.DocumentUrl && it.type != TransportType.CUPSONLINE && it.value.isNotBlank() }?.value
             ?: "http://#"
     }
 

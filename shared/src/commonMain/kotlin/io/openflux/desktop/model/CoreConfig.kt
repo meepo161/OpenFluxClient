@@ -25,6 +25,9 @@ data class CoreLaunch(
 object CoreConfig {
     const val LOOPBACK = "127.0.0.1"
 
+    /** -dd: operational logs; a bare --debug is -d, packet lines only. */
+    const val VERBOSE_LOG = "--debug=2"
+
     fun build(profile: Profile, settings: AppSettings, paths: CorePaths): CoreLaunch {
         val problems = profile.problems()
         require(problems.isEmpty()) { problems.first() }
@@ -80,7 +83,7 @@ object CoreConfig {
             add("--config"); add(paths.confFile)
             // The context goes on the command line: .conf values end at '#'
             // and the default context is "http://#".
-            add("--url=${profile.effectiveContext()}")
+            add("--session-context=${profile.effectiveContext()}")
             if (paths.ipcSocket != null) add("--ipc-socket=${paths.ipcSocket}")
             if (exit) {
                 add("--share")
@@ -88,7 +91,7 @@ object CoreConfig {
             } else if (!settings.fullTunnel) {
                 add("--http-proxy=$http")
             }
-            if (settings.verboseCoreLog) add("--debug")
+            if (settings.verboseCoreLog) add(VERBOSE_LOG)
         }
         val proxies = !exit && !settings.fullTunnel
         return CoreLaunch(args, conf, if (proxies) socks else null, if (proxies) http else null, usesIpc = paths.ipcSocket != null)
@@ -114,7 +117,7 @@ object CoreConfig {
             }
             if (paths.keyFile != null) add("--encryption-key-file=${paths.keyFile}")
             add("--cookie-store=${paths.cookieStore}")
-            if (settings.verboseCoreLog) add("--debug")
+            if (settings.verboseCoreLog) add(VERBOSE_LOG)
         }
         return if (settings.fullTunnel) CoreLaunch(args, null, null, null, usesIpc = false)
         else CoreLaunch(args, null, socks, http, usesIpc = false)
