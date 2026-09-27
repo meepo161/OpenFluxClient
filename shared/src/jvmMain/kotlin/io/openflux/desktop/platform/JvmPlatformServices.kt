@@ -110,7 +110,9 @@ class JvmPlatformServices(
 
     override suspend fun latestRelease(): String? = withContext(Dispatchers.IO) {
         runCatching {
-            val http = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(8)).build()
+            // GitHub answers a renamed repository with a redirect.
+            val http = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(8))
+                .followRedirects(HttpClient.Redirect.NORMAL).build()
             val request = HttpRequest.newBuilder(URI("https://api.github.com/repos/$RELEASE_REPO/releases?per_page=20"))
                 .header("User-Agent", "OpenFlux-Desktop").timeout(Duration.ofSeconds(10)).build()
             val body = http.send(request, HttpResponse.BodyHandlers.ofString()).body()
@@ -144,7 +146,7 @@ class JvmPlatformServices(
 
     companion object {
         /** Where the desktop releases are published, tagged v1.2.3. */
-        const val RELEASE_REPO = "meepo161/openfluxfordesktop"
+        const val RELEASE_REPO = "meepo161/OpenFluxClient"
         const val DESKTOP_TAG_PREFIX = "v"
     }
 }

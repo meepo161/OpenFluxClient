@@ -488,7 +488,7 @@ private fun AboutSettings(model: SettingsScreenModel) {
         LinkRow("OpenFlux (ядро)", "github.com/p1neappleXpress/OpenFlux", "https://github.com/p1neappleXpress/OpenFlux", platform::openUrl)
         LinkRow("OpenFlux Android", "github.com/damnurmum/OpenFlux-Android", "https://github.com/damnurmum/OpenFlux-Android", platform::openUrl)
         LinkRow("Ядро этого клиента", "github.com/meepo161/openfluxfork", "https://github.com/meepo161/openfluxfork", platform::openUrl)
-        LinkRow("Форк с мастером нод", "github.com/meepo161/openfluxandroidfork", "https://github.com/meepo161/openfluxandroidfork", platform::openUrl)
+        LinkRow("Этот клиент", "github.com/meepo161/OpenFluxClient", "https://github.com/meepo161/OpenFluxClient", platform::openUrl)
     }
     Text(
         "OpenFlux — экспериментальный проект без независимого аудита безопасности. Используйте свои ноды и не публикуйте ключи и ссылки openflux://.",

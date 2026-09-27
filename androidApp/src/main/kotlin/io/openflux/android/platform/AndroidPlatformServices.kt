@@ -140,7 +140,7 @@ class AndroidPlatformServices(
     }
 
     private companion object {
-        const val RELEASE_REPO = "meepo161/openfluxfordesktop"
+        const val RELEASE_REPO = "meepo161/OpenFluxClient"
         const val TAG_PREFIX = "android-client-v"
         const val MAX_QR_IMAGE = 2048
         val IMAGE_EXTENSIONS = setOf("png", "jpg", "jpeg", "bmp", "gif", "webp")

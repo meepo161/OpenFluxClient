@@ -7,8 +7,8 @@
 **Клиент [OpenFlux](https://github.com/p1neappleXpress/OpenFlux) для Windows, macOS, Linux и Android:
 профили, своя нода на VDS в пару кликов и весь трафик устройства через туннель.**
 
-[![Latest release](https://img.shields.io/github/v/release/meepo161/openfluxfordesktop?label=%D1%80%D0%B5%D0%BB%D0%B8%D0%B7&color=4F7CFF)](https://github.com/meepo161/openfluxfordesktop/releases/latest)
-[![Release](https://github.com/meepo161/openfluxfordesktop/actions/workflows/release.yml/badge.svg)](https://github.com/meepo161/openfluxfordesktop/actions/workflows/release.yml)
+[![Latest release](https://img.shields.io/github/v/release/meepo161/OpenFluxClient?label=%D1%80%D0%B5%D0%BB%D0%B8%D0%B7&color=4F7CFF)](https://github.com/meepo161/OpenFluxClient/releases/latest)
+[![Release](https://github.com/meepo161/OpenFluxClient/actions/workflows/release.yml/badge.svg)](https://github.com/meepo161/OpenFluxClient/actions/workflows/release.yml)
 [![Core](https://img.shields.io/badge/%D1%8F%D0%B4%D1%80%D0%BE-p1neappleXpress%2FOpenFlux-314D9E?logo=go&logoColor=white)](https://github.com/p1neappleXpress/OpenFlux)
 ![Kotlin](https://img.shields.io/badge/Kotlin-Compose%20Multiplatform-7F52FF?logo=kotlin&logoColor=white)
 
@@ -45,7 +45,7 @@
 
 ## 📦 Скачать
 
-Все сборки лежат в одном релизе: **[Releases → последний](https://github.com/meepo161/openfluxfordesktop/releases/latest)**. Рядом `SHA256SUMS.txt` для проверки.
+Все сборки лежат в одном релизе: **[Releases → последний](https://github.com/meepo161/OpenFluxClient/releases/latest)**. Рядом `SHA256SUMS.txt` для проверки.
 
 | Система | Файл | Что это |
 |---|---|---|
@@ -64,7 +64,7 @@
 
 > [!TIP]
 > **macOS:** сборки не подписаны — при первом запуске откройте приложение через правый клик → «Открыть».
-> **Android:** если стоит самостоятельно собранная или старая сборка с версией 2.x, удалите её перед установкой — Android не ставит «более старый» номер версии поверх.
+> **Android:** APK из релиза обновляет прежнюю версию из релизов. Сборку, сделанную самостоятельно, сначала удалите — у неё другая подпись.
 
 ## 🚀 Быстрый старт
 
@@ -155,7 +155,7 @@ scripts/build-android-core.sh ../OpenFlux              # openflux.aar для And
 Версия задаётся одним тегом `vX.Y.Z` в [`meepo161/openfluxfork`](https://github.com/meepo161/openfluxfork):
 
 ```bash
-git tag -a v1.4.1 -m "OpenFlux 1.4.1" && git push origin v1.4.1   # в репозитории ядра
+git tag -a v2.5.0 -m "OpenFlux 2.5.0" && git push origin v2.5.0   # в репозитории ядра
 ```
 
 Workflow ядра запускает здесь [`release.yml`](.github/workflows/release.yml) с этим тегом как неизменяемым `core_ref`. Он собирает Windows x64, Linux x64, macOS Apple Silicon и Intel, Android APK — каждый с ядром из этого тега — и публикует всё одним релизом с `SHA256SUMS.txt`. После этого ядро публикует свой релиз с бинарниками выходной ноды того же номера. Для этого у ядра должен быть секрет `CLIENT_RELEASE_TOKEN` с правом **Actions: write** к этому репозиторию.
@@ -193,7 +193,7 @@ shared/
 - **[damnurmum](https://github.com/damnurmum)** — автор [OpenFlux-Android](https://github.com/damnurmum/OpenFlux-Android) и улучшений ядра: ссылки и QR-коды `openflux://`, новый протокол cups.online.
 - Всем, кто присылал ошибки, тестировал ноды и транспорты и отправлял PR в OpenFlux.
 
-Мейнтейнер клиента — **[@meepo161](https://github.com/meepo161)**. Вопросы, ошибки и предложения — в [Issues](https://github.com/meepo161/openfluxfordesktop/issues).
+Мейнтейнер клиента — **[@meepo161](https://github.com/meepo161)**. Вопросы, ошибки и предложения — в [Issues](https://github.com/meepo161/OpenFluxClient/issues).
 
 ## ⚖️ Отказ от ответственности
 
