@@ -1,6 +1,7 @@
 package io.openflux.desktop.model
 
 import kotlinx.serialization.Serializable
+import kotlin.random.Random
 
 /** How to reach the VDS. Passwords and the key live only in memory. */
 data class SshTarget(
@@ -76,6 +77,51 @@ object NodeDocuments {
     /** Whether a Cookie header holds a Yandex login (the core's provision.CookieStore check). */
     fun signedIn(cookieHeader: String): Boolean =
         cookieHeader.split(';').any { it.trim().substringBefore('=') == "Session_id" && it.contains('=') }
+
+    /**
+     * The name of a new channel's document on Disk: the node's name in Latin
+     * letters, the time (UTC) and a few random letters and digits, like
+     * "moya-noda-20260927-0251-k3f9". Nothing says OpenFlux, and the default
+     * name ("Нода <server>") is left out so the server's address does not end
+     * up on Disk. Fits the [a-z0-9-]{1,64} the document browsers accept.
+     */
+    fun fileName(nodeName: String, host: String, nowMillis: Long, random: Random = Random.Default): String {
+        val name = nodeName.trim().takeUnless { it.isEmpty() || it == "Нода ${host.trim()}" }.orEmpty()
+        val slug = name.lowercase().map { TRANSLIT[it] ?: it.toString() }.joinToString("")
+            .replace("openflux", "")
+            .replace(Regex("[^a-z0-9]+"), "-").trim('-').take(24).trim('-')
+        val suffix = (1..4).map { ALPHABET[random.nextInt(ALPHABET.length)] }.joinToString("")
+        return listOf(slug, utcStamp(nowMillis), suffix).filter { it.isNotEmpty() }.joinToString("-")
+    }
+
+    private const val ALPHABET = "abcdefghijklmnopqrstuvwxyz0123456789"
+
+    private val TRANSLIT = mapOf(
+        'а' to "a", 'б' to "b", 'в' to "v", 'г' to "g", 'д' to "d", 'е' to "e", 'ё' to "e", 'ж' to "zh",
+        'з' to "z", 'и' to "i", 'й' to "y", 'к' to "k", 'л' to "l", 'м' to "m", 'н' to "n", 'о' to "o",
+        'п' to "p", 'р' to "r", 'с' to "s", 'т' to "t", 'у' to "u", 'ф' to "f", 'х' to "h", 'ц' to "ts",
+        'ч' to "ch", 'ш' to "sh", 'щ' to "sch", 'ъ' to "", 'ы' to "y", 'ь' to "", 'э' to "e", 'ю' to "yu",
+        'я' to "ya",
+    )
+
+    /** yyyyMMdd-HHmm in UTC, without a date library in common code. */
+    private fun utcStamp(millis: Long): String {
+        val minutes = millis / 60_000
+        val days = minutes.floorDiv(1440L)
+        val minuteOfDay = minutes.mod(1440L)
+        // Civil date from days since 1970-01-01 (Howard Hinnant's algorithm).
+        val z = days + 719468
+        val era = z.floorDiv(146097L)
+        val doe = z - era * 146097
+        val yoe = (doe - doe / 1460 + doe / 36524 - doe / 146096) / 365
+        val doy = doe - (365 * yoe + yoe / 4 - yoe / 100)
+        val mp = (5 * doy + 2) / 153
+        val day = doy - (153 * mp + 2) / 5 + 1
+        val month = if (mp < 10) mp + 3 else mp - 9
+        val year = yoe + era * 400 + if (month <= 2) 1 else 0
+        fun two(n: Long) = n.toString().padStart(2, '0')
+        return "$year${two(month)}${two(day)}-${two(minuteOfDay / 60)}${two(minuteOfDay % 60)}"
+    }
 }
 
 object NodeServers {

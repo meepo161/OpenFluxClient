@@ -188,7 +188,8 @@ class NodeWizardModelTest {
         advanceUntilIdle()
         wizard.createDocument()
         advanceUntilIdle()
-        assertEquals("openflux-of-test12", env.node.documentName)
+        // The default name "Нода <server>" stays off Disk: only the time and random letters.
+        assertTrue(Regex("^[0-9]{8}-[0-9]{4}-[a-z0-9]{4}$").matches(env.node.documentName), env.node.documentName)
         assertEquals(WizardStep.Plan, wizard.step)
         assertEquals(docUrl, wizard.documentUrl)
         assertTrue(wizard.nodeSignedIn)
@@ -290,6 +291,20 @@ class NodeWizardModelTest {
         assertEquals(2222, NodeServers.port(" 2222 "))
         assertTrue(NodeDocuments.signedIn("yandexuid=1; Session_id=abc; L=2"))
         assertFalse(NodeDocuments.signedIn("yandexuid=1; sessionid2=abc"))
+    }
+
+    /** The document is named after the node and the time, never "openflux", and never after the server's address. */
+    @Test
+    fun documentNames() {
+        val at = 1790477460000L // 2026-09-27 02:51 UTC
+        val named = NodeDocuments.fileName("Моя нода №1", "203.0.113.10", at, kotlin.random.Random(1))
+        assertTrue(Regex("^moya-noda-1-20260927-0251-[a-z0-9]{4}$").matches(named), named)
+        val default = NodeDocuments.fileName("Нода 203.0.113.10", "203.0.113.10", at, kotlin.random.Random(1))
+        assertTrue(Regex("^20260927-0251-[a-z0-9]{4}$").matches(default), default)
+        assertTrue(Regex("^20260927-0251-[a-z0-9]{4}$").matches(NodeDocuments.fileName("  ", "h", at, kotlin.random.Random(2))))
+        val long = NodeDocuments.fileName("x".repeat(100), "h", at, kotlin.random.Random(3))
+        assertTrue(Regex("^[a-z0-9-]{1,64}$").matches(long) && long.startsWith("x".repeat(24) + "-"), long)
+        assertFalse("openflux" in NodeDocuments.fileName("OpenFlux", "h", at, kotlin.random.Random(4)))
     }
 
     private class Env(exitIp: String = "203.0.113.10", sudoFails: Boolean = false) {

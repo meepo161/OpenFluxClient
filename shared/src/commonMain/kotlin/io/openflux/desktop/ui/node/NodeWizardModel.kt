@@ -192,10 +192,11 @@ class NodeWizardModel(private val container: AppContainer, private val scope: Co
     // ---- step 2: document ----
 
     fun createDocument() {
-        val channel = channel ?: return
+        if (channel == null) return
         launchCall("Открываю Яндекс во встроенном браузере…") {
             try {
-                val document = service.createDocument("openflux-${channel.id}") { documentProgress = it }
+                val fileName = NodeDocuments.fileName(name, host, container.platform.now())
+                val document = service.createDocument(fileName) { documentProgress = it }
                 yandexCookies = document.cookieHeader.takeIf(NodeDocuments::signedIn).orEmpty()
                 cookiesDocument = document.url
                 checkNow(document.url)
