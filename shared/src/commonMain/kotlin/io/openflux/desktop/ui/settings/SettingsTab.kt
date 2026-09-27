@@ -419,7 +419,7 @@ private fun CoreSettings(model: SettingsScreenModel) {
         SwitchRow(
             "Подробный журнал ядра",
             if (model.android) "Каждое действие транспорта попадает в журнал. Нужен для диагностики"
-            else "Флаг --debug: каждое действие транспорта попадает в журнал. Нужен для диагностики, замедляет работу",
+            else "Флаг -dd: каждое действие транспорта попадает в журнал. Нужен для диагностики, замедляет работу",
             settings.verboseCoreLog,
             { v -> model.update { it.copy(verboseCoreLog = v) } },
         )

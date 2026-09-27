@@ -43,7 +43,7 @@ class CoreConfigTest {
         assertFalse(secret in conf, "the key goes in its own file, not in the .conf")
         assertEquals(
             listOf(
-                "--config", "C:/rt/p.conf", "--url=https://disk.yandex.ru/i/one", "--ipc-socket=C:/rt/ipc.sock",
+                "--config", "C:/rt/p.conf", "--session-context=https://disk.yandex.ru/i/one", "--ipc-socket=C:/rt/ipc.sock",
                 "--http-proxy=127.0.0.1:1091",
             ),
             launch.arguments,
@@ -60,7 +60,7 @@ class CoreConfigTest {
         assertTrue("Inbound = tun" in conf)
         assertFalse("Socks5" in conf)
         assertEquals(
-            listOf("--config", "C:/rt/p.conf", "--url=https://disk.yandex.ru/i/one", "--ipc-socket=C:/rt/ipc.sock"),
+            listOf("--config", "C:/rt/p.conf", "--session-context=https://disk.yandex.ru/i/one", "--ipc-socket=C:/rt/ipc.sock"),
             launch.arguments,
         )
         assertNull(launch.socksAddress)
@@ -85,7 +85,7 @@ class CoreConfigTest {
         assertFalse("Socks5" in conf)
         assertFalse("Dial =" in conf)
         assertTrue("Listen = 0.0.0.0:9000" in conf)
-        assertTrue(launch.arguments.containsAll(listOf("--share", "--share-host=my.host", "--debug")))
+        assertTrue(launch.arguments.containsAll(listOf("--share", "--share-host=my.host", "--debug=2")))
         assertFalse(launch.arguments.any { it.startsWith("--http-proxy") })
         assertNull(launch.socksAddress)
     }
@@ -113,5 +113,17 @@ class CoreConfigTest {
         val classicExit = Profile(id = "c", name = "Old", transport = TransportType.YANDEX, value = "https://disk.yandex.ru/i/x")
         assertFailsWith<IllegalArgumentException> { CoreConfig.build(classicExit, AppSettings(mode = ConnectionMode.Exit), paths) }
         assertFailsWith<IllegalArgumentException> { CoreConfig.build(session.copy(secret = "short"), AppSettings(), paths) }
+    }
+
+    /** The core leaves Cups.online out of the KDF context; the app must too. */
+    @Test
+    fun contextSkipsCupsonline() {
+        val cups = session.copy(
+            transport = TransportType.CUPSONLINE, value = "room-a,room-b", priority = 100,
+            extras = listOf(ExtraTransport(TransportType.VYANDEX, "https://disk.yandex.ru/i/two", priority = 90)),
+        )
+        assertEquals("https://disk.yandex.ru/i/two", cups.effectiveContext())
+        assertEquals("http://#", cups.copy(extras = emptyList()).effectiveContext())
+        assertTrue("--session-context=http://#" in CoreConfig.build(cups.copy(extras = emptyList()), AppSettings(), paths).arguments)
     }
 }
