@@ -11,3 +11,6 @@ desktopApp/resources/*/wintun.dll
 androidApp/libs/*.aar
 androidApp/libs/*.jar
 androidApp/libs/openflux-core.version
+
+# Chromium (the built-in browser) leaves these in the working directory.
+MediaDeviceSalts*

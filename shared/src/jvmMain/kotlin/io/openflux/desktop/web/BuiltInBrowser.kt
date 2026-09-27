@@ -38,6 +38,7 @@ import java.io.File
 import java.util.Collections
 import java.util.UUID
 import java.util.concurrent.ConcurrentHashMap
+import javax.swing.SwingUtilities
 import kotlin.math.roundToInt
 
 /** A page open in the built-in browser. Close it when done. */
@@ -80,10 +81,27 @@ class KcefPage internal constructor(private val browser: KCEFBrowser) : BrowserP
         }
     }
 
+    /**
+     * Closing a browser makes JCEF (CefBrowser_N.doClose) send WINDOW_CLOSING
+     * to the window its view sits in: meant for a browser in a frame of its
+     * own, here it is the OpenFlux window, which then went to the tray (or
+     * quit, without "close to tray") as soon as a wizard step or a check was
+     * done. So the view leaves the window first, on the UI thread, where
+     * JCEF looks for that window.
+     */
     fun close() {
         if (closed) return
         closed = true
-        runCatching { browser.dispose() }
+        val dispose = {
+            val view = browser.uiComponent
+            view.parent?.let { parent ->
+                parent.remove(view)
+                parent.revalidate()
+            }
+            runCatching { browser.dispose() }
+            Unit
+        }
+        if (SwingUtilities.isEventDispatchThread()) dispose() else SwingUtilities.invokeLater(dispose)
     }
 }
 
